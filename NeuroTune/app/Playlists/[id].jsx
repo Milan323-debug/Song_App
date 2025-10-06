@@ -10,10 +10,9 @@ export default function PlaylistDetail() {
   const { id } = useLocalSearchParams();
   const [playlist, setPlaylist] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const router = useRouter();
-  const { playTrack } = usePlayerStore((state) => ({
-    playTrack: state.playTrack
-  }));
+  const playTrack = usePlayerStore((state) => state.playTrack);
 
   useEffect(() => {
     let isMounted = true;
@@ -21,19 +20,31 @@ export default function PlaylistDetail() {
     const fetchPlaylist = async () => {
       if (!id) return;
       try {
+        setError(null);
         setLoading(true);
         const res = await fetch(`${API_URL}api/playlists/${id}`);
         const data = await res.json();
         
-        if (isMounted) {
-          if (data.error) {
-            console.error("Error fetching playlist:", data.error);
-            return;
-          }
-          setPlaylist(data.playlist || null);
+        if (!isMounted) return;
+        
+        if (data.error) {
+          setError(data.error);
+          return;
         }
+        
+        if (!data.playlist) {
+          setError('Playlist not found');
+          return;
+        }
+
+        setPlaylist({
+          ...data.playlist,
+          songs: Array.isArray(data.playlist.songs) ? data.playlist.songs : []
+        });
       } catch (error) {
+        if (!isMounted) return;
         console.error("fetchPlaylist error:", error);
+        setError('Failed to load playlist');
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -48,10 +59,9 @@ export default function PlaylistDetail() {
   }, [id]);
 
   const handlePlaySong = async (song, index) => {
-    if (!song) return;
+    if (!song || !playlist?.songs) return;
     try {
-      // Pass the entire playlist songs array as the queue and current index
-      await playTrack(song, playlist.songs || [], index);
+      await playTrack(song, playlist.songs, index);
     } catch (error) {
       console.error('Failed to play song:', error);
     }

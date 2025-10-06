@@ -30,19 +30,29 @@ export const getPlaylists = asyncHandler(async (req, res) => {
 // Get single playlist
 export const getPlaylist = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const playlist = await Playlist.findById(id)
-    .populate("user", "username profileImage")
-    .populate({
-      path: "songs",
-      select: "_id title artist artworkUrl duration url"
-    })
-    .lean();
-  
-  if (!playlist) {
-    return res.status(404).json({ error: "Playlist not found" });
+  try {
+    const playlist = await Playlist.findById(id)
+      .populate("user", "username profileImage")
+      .populate({
+        path: "songs",
+        select: "_id title artist artworkUrl duration url createdAt updatedAt"
+      })
+      .lean();
+    
+    if (!playlist) {
+      return res.status(404).json({ error: "Playlist not found" });
+    }
+
+    // Ensure songs array exists and is populated
+    if (!playlist.songs) {
+      playlist.songs = [];
+    }
+    
+    res.status(200).json({ playlist });
+  } catch (error) {
+    console.error('Error fetching playlist:', error);
+    res.status(500).json({ error: "Failed to fetch playlist" });
   }
-  
-  res.status(200).json({ playlist });
 });
 
 // Update playlist (only owner)
