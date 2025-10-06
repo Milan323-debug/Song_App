@@ -4,6 +4,7 @@ const playlistSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String, default: "" },
+    imageUrl: { type: String },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     songs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
     isPublic: { type: Boolean, default: true },

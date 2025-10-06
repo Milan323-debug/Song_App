@@ -19,13 +19,26 @@ function CreateTabButton(props) {
         setChooserVisible(true);
       }}
       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-      style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 10 }, props.style]}
+      style={[
+        { 
+          flex: 1, 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          height: 60,
+          paddingTop: 8,
+          zIndex: 10 
+        }, 
+        props.style
+      ]}
       accessible
       accessibilityRole="button"
     >
-      <View>
-        <Ionicons name="add-circle-outline" size={24} color={selected ? COLORS.primary : '#def7ffff'} />
-      </View>
+      <Ionicons 
+        name="add-circle" 
+        size={30} 
+        color={selected ? COLORS.primary : '#def7ffff'} 
+        style={{ marginBottom: 4 }}
+      />
     </TouchableOpacity>
   );
 }
@@ -81,13 +94,7 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="Create"
-          options={{
-            title: "Create",
-            tabBarButton: (props) => <CreateTabButton {...props} />,
-          }}
-        />
+        
         <Tabs.Screen
           name="Playlists"
           options={{
@@ -104,6 +111,13 @@ export default function TabLayout() {
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person-outline" size={size} color={color} />
             ),
+          }}
+        />
+        <Tabs.Screen
+          name="Create"
+          options={{
+            title: "Create",
+            tabBarButton: (props) => <CreateTabButton {...props} />,
           }}
         />
       </Tabs>
