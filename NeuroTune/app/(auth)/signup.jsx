@@ -34,10 +34,29 @@ export default function Signup() {
 
   function validate() {
     const e = {};
+    // Username
     if (!username) e.username = "Username is required";
+    else if (username.length < 4) e.username = "Username must be at least 4 characters";
+    else if (!/^[a-zA-Z0-9]+$/.test(username)) e.username = "Username can only contain letters and numbers";
+
+    // Email
     if (!email) e.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Please enter a valid email address";
+
+    // Password
     if (!password) e.password = "Password is required";
-    if (password && password.length < 6) e.password = "Password must be >= 6 chars";
+    else if (password.length < 8) e.password = "Password must be at least 8 characters";
+    else {
+      const hasUpper = /[A-Z]/.test(password);
+      const hasLower = /[a-z]/.test(password);
+      const hasNumber = /\d/.test(password);
+      const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+      if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+        e.password =
+          "Password must include uppercase, lowercase, a number and a special character";
+      }
+    }
+
     if (password !== confirm) e.confirm = "Passwords do not match";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -160,6 +179,26 @@ export default function Signup() {
               </TouchableOpacity>
             </View>
             {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm Password</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.textPrimary} style={styles.inputIcon} />
+              <TextInput
+                placeholder="Confirm password"
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                style={styles.input}
+                value={confirm}
+                onChangeText={setConfirm}
+                secureTextEntry={secureConfirm}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={() => setSecureConfirm((s) => !s)} style={styles.eyeIcon}>
+                <Ionicons name={secureConfirm ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            {errors.confirm ? <Text style={styles.errorText}>{errors.confirm}</Text> : null}
           </View>
 
           <Animated.View style={{ transform: [{ scale: btnScale }] }}>

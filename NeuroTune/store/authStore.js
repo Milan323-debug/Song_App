@@ -81,17 +81,29 @@ export const useAuthStore = create((set) => ({
                 },
                 body: JSON.stringify({username, email, password}),
             });
-            const data = await response.json();
-            
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (e) {
+                // invalid json
+            }
+
             // Reset loading state and return error if response not ok
             if (!response.ok) {
                 set({isLoading: false});
-                return {success: false, error: data.message};
+                const errMsg = (data && (data.message || data.error)) || `Request failed (${response.status})`;
+                return {success: false, error: errMsg};
             }
-            
+
+            // Ensure we have required fields
+            if (!data || !data.token || !data.user) {
+                set({isLoading: false});
+                return {success: false, error: 'Invalid server response'};
+            }
+
             await AsyncStorage.setItem('user', JSON.stringify(data.user));
             await AsyncStorage.setItem('token', data.token);
-            
+
             set({token: data.token, user: data.user, isLoading: false});
             return {success: true};
         } catch (error) {

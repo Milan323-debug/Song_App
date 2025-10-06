@@ -2,7 +2,7 @@ import { create } from 'zustand'
 // Use Expo AV for audio (provides Audio and Sound APIs)
 import { Audio } from 'expo-av'
 
-export const usePlayerStore = create((set, get) => {
+const usePlayerStore = create((set, get) => {
   const soundRef = { current: null }
   // optional promise that resolves when a new sound has finished creating
   soundRef.initPromise = null
@@ -225,3 +225,5 @@ export const usePlayerStore = create((set, get) => {
     setRepeatMode,
   }
 })
+
+export default usePlayerStore;

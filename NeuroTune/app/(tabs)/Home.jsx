@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { usePlayerStore } from "../../store/playerStore";
+import usePlayerStore from "../../store/playerStore";
 import { API_URL } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";

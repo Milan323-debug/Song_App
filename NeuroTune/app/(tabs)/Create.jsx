@@ -17,6 +17,7 @@ import styles from "../../assets/styles/create.styles";
 import COLORS from "../../constants/colors";
 import { useRouter } from "expo-router";
 import { Modal } from "react-native";
+import { useUiStore } from "../../store/uiStore";
 
 export default function Create() {
   const { token } = useAuthStore();
@@ -27,7 +28,8 @@ export default function Create() {
   const [pickedFile, setPickedFile] = useState(null);
   const [pickedArtwork, setPickedArtwork] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [chooserVisible, setChooserVisible] = useState(false);
+  const chooserVisible = useUiStore((s) => s.chooserVisible);
+  const setChooserVisible = useUiStore((s) => s.setChooserVisible);
 
   useEffect(() => {
     (async () => {
@@ -175,24 +177,6 @@ export default function Create() {
 
   return (
     <View style={styles.container}>
-      <Modal visible={chooserVisible} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-            <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Create</Text>
-            <TouchableOpacity style={{ paddingVertical: 12 }} onPress={onChooseSong}>
-              <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>Song</Text>
-              <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>Upload a new song</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ paddingVertical: 12 }} onPress={onChoosePlaylist}>
-              <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>Playlist</Text>
-              <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>Create a new playlist</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ paddingVertical: 12, alignItems: 'flex-end' }} onPress={() => setChooserVisible(false)}>
-              <Text style={{ color: COLORS.textSecondary }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
       <View style={styles.card}>
         <Text style={styles.title}>Create a Song</Text>
         <Text style={styles.subtitle}>Upload an audio file and optional artwork</Text>
@@ -228,9 +212,7 @@ export default function Create() {
         <TouchableOpacity style={styles.button} onPress={handleUpload} disabled={uploading}>
           {uploading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.buttonText}>Create</Text>}
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, { marginTop: 12, backgroundColor: COLORS.border }]} onPress={openChooser}>
-          <Text style={styles.buttonText}>Create...</Text>
-        </TouchableOpacity>
+        {/* removed duplicate create button; the tab bar Create button now opens the chooser modal */}
       </View>
     </View>
   );
