@@ -7,6 +7,9 @@ import {
   getUsersBatch,
   syncUser,
   updateProfile,
+  getLikedSongs,
+  addLikedSong,
+  removeLikedSong,
 } from "../controllers/user.controller.js";
 import upload from "../middleware/upload.middleware.js";
 import protectRoute from "../middleware/auth.middleware.js";
@@ -26,5 +29,10 @@ router.get("/me", protectRoute, getCurrentUser);
 // allow multipart upload for profileImage (field name: 'profileImage')
 router.put("/profile", protectRoute, upload.single("profileImage"), updateProfile);
 router.post("/follow/:targetUserId", protectRoute, followUser);
+
+// liked songs
+router.get('/liked', protectRoute, getLikedSongs);
+router.post('/liked', protectRoute, addLikedSong);
+router.delete('/liked/:songId', protectRoute, removeLikedSong);
 
 export default router;

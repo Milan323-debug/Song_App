@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, FlatList, Image, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
-import COLORS from "../../constants/colors";
-import styles from "../../assets/styles/create.styles";
-import playlistStyles from "../../assets/styles/playlists.styles";
-import { API_URL } from "../../constants/api";
-import { useAuthStore } from "../../store/authStore";
+import COLORS from "../../../constants/colors";
+import styles from "../../../assets/styles/create.styles";
+import playlistStyles from "../../../assets/styles/playlists.styles";
+import { API_URL } from "../../../constants/api";
+import { useAuthStore } from "../../../store/authStore";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -145,10 +145,10 @@ export default function CreatePlaylist({ navigation }) {
     }
   };
 
-  if (loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator color={COLORS.primary} /></View>;
+  if (loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: COLORS.background }]}>
       <LinearGradient colors={["rgba(0,0,0,0.9)", "rgba(0,0,0,0.6)"]} style={{ padding: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity 

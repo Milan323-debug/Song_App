@@ -46,6 +46,7 @@ export default function Songs() {
   const currentUser = useAuthStore((s) => s.user);
 
   const [songs, setSongs] = useState([]);
+  const [likedSet, setLikedSet] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [title, setTitle] = useState("");
@@ -111,8 +112,22 @@ export default function Songs() {
 
   useEffect(() => {
     fetchSongs();
+    fetchLikedIds();
     return () => {};
   }, []);
+
+  const fetchLikedIds = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/user/liked`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const json = await res.json();
+      const ids = (json.songs || []).map((s) => String(s._id));
+      setLikedSet(new Set(ids));
+    } catch (e) {
+      console.warn('fetchLikedIds', e);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -361,6 +376,41 @@ export default function Songs() {
     ]);
   };
 
+  const addToLiked = async (song) => {
+    if (!token) return Alert.alert('Sign in required');
+    try {
+    const res = await fetch(`${API_URL}/api/user/liked`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id }) });
+      if (!res.ok) throw new Error('Failed to like');
+      setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
+      Alert.alert('Added', 'Added to Liked Songs');
+    } catch (e) {
+      console.warn('like failed', e);
+      Alert.alert('Error', 'Could not add to liked');
+    }
+  };
+
+  const removeFromLikedViaModal = async (song) => {
+    if (!token) return Alert.alert('Sign in required');
+    try {
+      // try DELETE endpoint first
+      let res = await fetch(`${API_URL}/api/user/liked/${song._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        // fallback to POST with remove flag
+        res = await fetch(`${API_URL}/api/user/liked`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) });
+      }
+      if (!res.ok) throw new Error('Failed to remove liked');
+      setLikedSet((s) => {
+        const next = new Set(Array.from(s).filter((id) => id !== String(song._id)));
+        return next;
+      });
+      setOptionsForSong(null);
+      Alert.alert('Removed', 'Song removed from Liked');
+    } catch (e) {
+      console.warn('remove liked', e);
+      Alert.alert('Error', 'Could not remove liked');
+    }
+  };
+
   const repeatSongOption = async (item) => {
     try {
       setRepeatMode("one");
@@ -398,6 +448,16 @@ export default function Songs() {
           <Text style={styles.songTitle}>{item.title}</Text>
           <Text style={styles.songArtist}>{item.artist || item.user?.username || ""}</Text>
         </View>
+        {/* Like / Add to Liked: show a circular plus if not liked, otherwise hide */}
+        {currentUser && (
+          likedSet.has(String(item._id)) ? (
+            <View style={{ width: 44, height: 44, justifyContent: 'center', alignItems: 'center' }} />
+          ) : (
+            <TouchableOpacity onPress={() => addToLiked(item)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
+              <Ionicons name="add" size={18} color={COLORS.background} />
+            </TouchableOpacity>
+          )
+        )}
         {currentUser && item.user && String(item.user._id) === String(currentUser._id) && (
           <TouchableOpacity style={styles.optionsBtn} onPress={() => showSongOptions(item)}>
             <Text style={styles.optionsText}>⋮</Text>
@@ -468,6 +528,15 @@ export default function Songs() {
             >
               <Text style={{ color: SONGS_TEXT_LIGHT, fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
+            {/* If the song is liked by the user, show remove from liked option */}
+            {optionsForSong && likedSet.has(String(optionsForSong._id)) && (
+              <TouchableOpacity
+                style={{ padding: 12, borderRadius: 8, marginTop: 8, alignItems: 'center' }}
+                onPress={() => removeFromLikedViaModal(optionsForSong)}
+              >
+                <Text style={{ color: '#ff6b6b', fontWeight: '600' }}>Remove from Liked Songs</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>

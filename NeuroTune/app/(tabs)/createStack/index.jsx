@@ -11,13 +11,13 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { API_URL } from "../../constants/api";
-import { useAuthStore } from "../../store/authStore";
-import styles from "../../assets/styles/create.styles";
-import COLORS from "../../constants/colors";
+import { API_URL } from "../../../constants/api";
+import { useAuthStore } from "../../../store/authStore";
+import styles from "../../../assets/styles/create.styles";
+import COLORS from "../../../constants/colors";
 import { useRouter } from "expo-router";
 import { Modal } from "react-native";
-import { useUiStore } from "../../store/uiStore";
+import { useUiStore } from "../../../store/uiStore";
 
 export default function Create() {
   const { token } = useAuthStore();
@@ -172,11 +172,11 @@ export default function Create() {
     setChooserVisible(false);
     // Generate default sequential name if user doesn't provide one on next screen
     // We'll navigate to CreatePlaylist screen which will prompt the user for a name
-    router.push("/CreatePlaylist");
+    router.push("CreatePlaylist");
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: COLORS.background }] }>
       <View style={styles.card}>
         <Text style={styles.title}>Create a Song</Text>
         <Text style={styles.subtitle}>Upload an audio file and optional artwork</Text>

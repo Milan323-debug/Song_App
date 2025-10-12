@@ -11,6 +11,9 @@ const COLORS = {
   border: "#00F5D4",           // Aqua glow for borders/highlights
   white: "#ffffff",
   black: "#000000",
+  error: "#FF6B6B",            // Vivid Red for errors/alerts
+  success: "#32CD32",          // Bright Green for success messages
+  warning: "#FFA500",          // Orange for warnings
 };
 
 export default COLORS;

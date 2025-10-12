@@ -1,18 +1,53 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { API_URL } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import styles from "../../assets/styles/playlists.styles";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuthStore } from "../../store/authStore";
 
 export default function Playlists() {
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const router = useRouter();
+  const { token, user } = useAuthStore();
 
   useEffect(() => {
     fetchPlaylists();
   }, []);
+
+  const handleDeletePlaylist = async () => {
+    if (!selectedPlaylist || !token) return;
+
+    try {
+      const res = await fetch(`${API_URL}api/playlists/${selectedPlaylist._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to delete playlist');
+      }
+
+      // Remove playlist from state
+      setPlaylists(playlists.filter(p => p._id !== selectedPlaylist._id));
+      setMenuVisible(false);
+      setSelectedPlaylist(null);
+    } catch (error) {
+      console.error('Delete playlist error:', error);
+      Alert.alert('Error', 'Failed to delete playlist');
+    }
+  };
+
+  const handleOpenMenu = (playlist) => {
+    setSelectedPlaylist(playlist);
+    setMenuVisible(true);
+  };
 
   const fetchPlaylists = async () => {
     try {
@@ -30,10 +65,14 @@ export default function Playlists() {
   };
 
   const renderItem = ({ item }) => {
+    const isOwner = user && item.user && String(user._id) === String(item.user._id);
+
     return (
       <TouchableOpacity style={styles.card} onPress={() => router.push(`/Playlists/${item._id}`)}>
         <View style={styles.cardLeft}>
-          {item.songs && item.songs[0] && item.songs[0].artworkUrl ? (
+          {item.imageUrl ? (
+            <Image source={{ uri: item.imageUrl }} style={styles.artwork} />
+          ) : item.songs && item.songs[0] && item.songs[0].artworkUrl ? (
             <Image source={{ uri: item.songs[0].artworkUrl }} style={styles.artwork} />
           ) : (
             <View style={[styles.artwork, { backgroundColor: COLORS.cardBackground }]} />
@@ -44,6 +83,21 @@ export default function Playlists() {
           <Text style={styles.subtitle}>{item.description || `${item.songs?.length || 0} songs`}</Text>
           <Text style={styles.owner}>By {item.user?.username || 'Unknown'}</Text>
         </View>
+        {isOwner && (
+          <TouchableOpacity 
+            onPress={(e) => {
+              e.stopPropagation();
+              handleOpenMenu(item);
+            }}
+            style={{
+              padding: 8,
+              marginLeft: 'auto',
+              marginRight: -8
+            }}
+          >
+            <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   };
@@ -58,6 +112,65 @@ export default function Playlists() {
 
   return (
     <View style={styles.container}>
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity 
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'flex-end'
+          }} 
+          activeOpacity={1} 
+          onPress={() => setMenuVisible(false)}
+        >
+          <View style={{ 
+            backgroundColor: COLORS.cardBackground,
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            padding: 16
+          }}>
+            <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 }}>
+              Playlist Options
+            </Text>
+            <TouchableOpacity 
+              style={{ 
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 12,
+              }}
+              onPress={() => {
+                setMenuVisible(false);
+                Alert.alert(
+                  'Delete Playlist',
+                  'Are you sure you want to delete this playlist?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', onPress: handleDeletePlaylist, style: 'destructive' }
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="trash-outline" size={24} color={COLORS.error} />
+              <Text style={{ color: COLORS.error, marginLeft: 12, fontSize: 16 }}>Delete Playlist</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={{ 
+                paddingVertical: 12,
+                borderTopWidth: 1,
+                borderTopColor: 'rgba(255,255,255,0.1)',
+                alignItems: 'center'
+              }}
+              onPress={() => setMenuVisible(false)}
+            >
+              <Text style={{ color: COLORS.textSecondary }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       <FlatList
         data={playlists}
         keyExtractor={(item) => item._id}
@@ -70,8 +183,8 @@ export default function Playlists() {
         )}
       />
       <TouchableOpacity
-        onPress={() => router.push('/Create')}
-        style={{ position: 'absolute', right: 18, bottom: 88, backgroundColor: COLORS.primary, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' }}>
+        onPress={() => router.push('/(tabs)/createStack/CreatePlaylist')}
+        style={{ position: 'absolute', right: 18, bottom: 120, backgroundColor: COLORS.primary, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ color: COLORS.white, fontSize: 28 }}>+</Text>
       </TouchableOpacity>
     </View>

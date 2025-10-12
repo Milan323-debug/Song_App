@@ -55,6 +55,13 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    // liked songs (references to Song documents)
+    likedSongs: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Song",
+      },
+    ],
   },
   { timestamps: true }
 );
