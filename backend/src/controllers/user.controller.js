@@ -216,41 +216,59 @@ export const followUser = asyncHandler(async (req, res) => {
 
 // Get liked songs for current user
 export const getLikedSongs = asyncHandler(async (req, res) => {
-	const user = await User.findById(req.user._id).populate({ path: 'likedSongs', populate: { path: 'user', select: 'username profileImage' } });
-	if (!user) return res.status(404).json({ message: 'User not found' });
-	res.status(200).json({ songs: user.likedSongs || [] });
+	try {
+		if (!req.user || !req.user._id) return res.status(401).json({ message: 'Not authenticated' });
+		const user = await User.findById(req.user._id).populate({ path: 'likedSongs', populate: { path: 'user', select: 'username profileImage' } });
+		if (!user) return res.status(404).json({ message: 'User not found' });
+		return res.status(200).json({ songs: user.likedSongs || [] });
+	} catch (err) {
+		console.error('getLikedSongs: unexpected error', err);
+		return res.status(500).json({ message: 'Failed to fetch liked songs' });
+	}
 });
 
 // Add a song to liked songs
 export const addLikedSong = asyncHandler(async (req, res) => {
-	const user = await User.findById(req.user._id);
-	if (!user) return res.status(404).json({ message: 'User not found' });
-	const { songId, remove } = req.body || {};
-	if (!songId) return res.status(400).json({ message: 'Missing songId' });
-	// toggle behavior if remove flag provided
-	if (remove) {
-		user.likedSongs = (user.likedSongs || []).filter((s) => s.toString() !== songId.toString());
-		await user.save();
-		return res.status(200).json({ message: 'Removed from liked', songId });
+	try {
+		if (!req.user || !req.user._id) return res.status(401).json({ message: 'Not authenticated' });
+		const user = await User.findById(req.user._id);
+		if (!user) return res.status(404).json({ message: 'User not found' });
+		const { songId, remove } = req.body || {};
+		if (!songId) return res.status(400).json({ message: 'Missing songId' });
+		// toggle behavior if remove flag provided
+		if (remove) {
+			user.likedSongs = (user.likedSongs || []).filter((s) => s.toString() !== songId.toString());
+			await user.save();
+			return res.status(200).json({ message: 'Removed from liked', songId });
+		}
+		// add if not present
+		const exists = (user.likedSongs || []).some((s) => s.toString() === songId.toString());
+		if (!exists) {
+			user.likedSongs = user.likedSongs || [];
+			user.likedSongs.push(songId);
+			await user.save();
+		}
+		return res.status(200).json({ message: exists ? 'Already liked' : 'Added to liked', songId });
+	} catch (err) {
+		console.error('addLikedSong: unexpected error', err);
+		return res.status(500).json({ message: 'Failed to update liked songs' });
 	}
-	// add if not present
-	const exists = (user.likedSongs || []).some((s) => s.toString() === songId.toString());
-	if (!exists) {
-		user.likedSongs = user.likedSongs || [];
-		user.likedSongs.push(songId);
-		await user.save();
-	}
-	res.status(200).json({ message: exists ? 'Already liked' : 'Added to liked', songId });
 });
 
 // Remove liked song by id (route param)
 export const removeLikedSong = asyncHandler(async (req, res) => {
-	const { songId } = req.params;
-	const user = await User.findById(req.user._id);
-	if (!user) return res.status(404).json({ message: 'User not found' });
-	user.likedSongs = (user.likedSongs || []).filter((s) => s.toString() !== songId.toString());
-	await user.save();
-	res.status(200).json({ message: 'Removed from liked', songId });
+	try {
+		const { songId } = req.params;
+		if (!req.user || !req.user._id) return res.status(401).json({ message: 'Not authenticated' });
+		const user = await User.findById(req.user._id);
+		if (!user) return res.status(404).json({ message: 'User not found' });
+		user.likedSongs = (user.likedSongs || []).filter((s) => s.toString() !== songId.toString());
+		await user.save();
+		return res.status(200).json({ message: 'Removed from liked', songId });
+	} catch (err) {
+		console.error('removeLikedSong: unexpected error', err);
+		return res.status(500).json({ message: 'Failed to remove liked song' });
+	}
 });
 
 export default {};
