@@ -30,7 +30,7 @@ export default function CreatePlaylist({ navigation }) {
   const fetchSongs = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}api/songs`);
+  const res = await fetch(API('api/songs'));
       const json = await res.json();
       if (Array.isArray(json.songs)) setSongs(json.songs);
       else if (Array.isArray(json)) setSongs(json);
@@ -43,7 +43,7 @@ export default function CreatePlaylist({ navigation }) {
 
   const fetchPlaylistCount = async () => {
     try {
-      const res = await fetch(`${API_URL}api/playlists`);
+  const res = await fetch(API('api/playlists'));
       const json = await res.json();
       // server returns { playlists: [...] }
       const list = Array.isArray(json.playlists) ? json.playlists : (Array.isArray(json) ? json : []);

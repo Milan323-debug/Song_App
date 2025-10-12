@@ -17,7 +17,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import usePlayerStore from "../../store/playerStore";
-import { API_URL } from "../../constants/api";
+import { API_URL, API } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -119,11 +119,12 @@ export default function Songs() {
   const fetchLikedIds = async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_URL}/api/user/liked`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(API('api/user/liked'), { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      const json = await res.json();
-      const ids = (json.songs || []).map((s) => String(s._id));
-      setLikedSet(new Set(ids));
+  let json = null
+  try { json = await res.json(); } catch (e) { json = null }
+  const ids = (json && Array.isArray(json.songs)) ? json.songs.map((s) => String(s._id)) : [];
+  setLikedSet(new Set(ids));
     } catch (e) {
       console.warn('fetchLikedIds', e);
     }
@@ -145,9 +146,10 @@ export default function Songs() {
   const fetchSongs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/songs`);
-      const json = await res.json();
-      setSongs(json.songs || []);
+  const res = await fetch(API('api/songs'));
+  let json = null
+  try { json = await res.json(); } catch (e) { json = null }
+  setSongs((json && Array.isArray(json.songs)) ? json.songs : []);
     } catch (e) {
       console.warn("fetchSongs", e);
       Alert.alert("Error", "Failed to load songs");
@@ -212,7 +214,7 @@ export default function Songs() {
   };
 
   const uploadToCloudinary = async (file) => {
-    const signRes = await fetch(`${API_URL}/api/songs/sign`, {
+  const signRes = await fetch(API('api/songs/sign'), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -244,7 +246,7 @@ export default function Songs() {
   };
 
   const uploadArtworkToCloudinary = async (image) => {
-    const signRes = await fetch(`${API_URL}/api/songs/sign`, {
+  const signRes = await fetch(API('api/songs/sign'), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -284,7 +286,7 @@ export default function Songs() {
 
       const cloudJson = await uploadToCloudinary(pickedFile);
 
-      const createRes = await fetch(`${API_URL}/api/songs`, {
+  const createRes = await fetch(API('api/songs'), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -360,7 +362,7 @@ export default function Songs() {
         style: "destructive",
         onPress: async () => {
           try {
-            const res = await fetch(`${API_URL}/api/songs/${item._id}`, {
+            const res = await fetch(API(`api/songs/${item._id}`), {
               method: "DELETE",
               headers: { Authorization: `Bearer ${token}` },
             });
@@ -379,26 +381,44 @@ export default function Songs() {
   const addToLiked = async (song) => {
     if (!token) return Alert.alert('Sign in required');
     try {
-    const res = await fetch(`${API_URL}/api/user/liked`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id }) });
-      if (!res.ok) throw new Error('Failed to like');
+      const endpoint = API('api/user/liked');
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id }) });
+      const text = await res.text();
+      let json;
+      try { json = text ? JSON.parse(text) : null; } catch (e) { json = null }
+      console.debug('addToLiked response', { endpoint, status: res.status, ok: res.ok, text: text?.slice?.(0, 200) });
+      if (!res.ok) {
+        // surface backend error message if present
+        const message = json?.message || json?.error || text || 'Failed to like';
+        throw new Error(message);
+      }
       setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
       Alert.alert('Added', 'Added to Liked Songs');
     } catch (e) {
       console.warn('like failed', e);
-      Alert.alert('Error', 'Could not add to liked');
+      Alert.alert('Error', `Could not add to liked\n${e.message || ''}`);
     }
   };
 
   const removeFromLikedViaModal = async (song) => {
     if (!token) return Alert.alert('Sign in required');
     try {
-      // try DELETE endpoint first
-      let res = await fetch(`${API_URL}/api/user/liked/${song._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const delEndpoint = API(`api/user/liked/${song._id}`);
+      let res = await fetch(delEndpoint, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      let text = await res.text();
+      let json;
+      try { json = text ? JSON.parse(text) : null } catch (e) { json = null }
+      console.debug('removeFromLiked DELETE response', { endpoint: delEndpoint, status: res.status, ok: res.ok, text: text?.slice?.(0,200) });
       if (!res.ok) {
         // fallback to POST with remove flag
-        res = await fetch(`${API_URL}/api/user/liked`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) });
+        const postEndpoint = API('api/user/liked');
+        res = await fetch(postEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) });
+        text = await res.text();
+        try { json = text ? JSON.parse(text) : null } catch (e) { json = null }
+        console.debug('removeFromLiked POST response', { endpoint: postEndpoint, status: res.status, ok: res.ok, text: text?.slice?.(0,200) });
       }
-      if (!res.ok) throw new Error('Failed to remove liked');
+      if (!res.ok) throw new Error(json?.message || text || 'Failed to remove liked');
+
       setLikedSet((s) => {
         const next = new Set(Array.from(s).filter((id) => id !== String(song._id)));
         return next;

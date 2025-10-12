@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {API_URL} from '../constants/api';
+import {API_URL, API} from '../constants/api';
 
 export const useAuthStore = create((set) => ({
     user: null, 
@@ -13,7 +13,7 @@ export const useAuthStore = create((set) => ({
         try {
             const token = useAuthStore.getState().token;
             if (!token) return null;
-                const res = await fetch(`${API_URL}api/user/me`, { headers: { Authorization: `Bearer ${token}` } });
+                const res = await fetch(API('api/user/me'), { headers: { Authorization: `Bearer ${token}` } });
             if (!res.ok) return null;
             const json = await res.json();
             if (json.user) {
@@ -31,7 +31,7 @@ export const useAuthStore = create((set) => ({
         const current = useAuthStore.getState().user;
         if (!token || !current) return { success: false, error: 'Not authenticated' };
         try {
-            const res = await fetch(`${API_URL}api/user/follow/${targetUserId}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch(API(`api/user/follow/${targetUserId}`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
             const json = await res.json();
             console.debug('toggleFollow response', res.status, json);
             if (!res.ok) return { success: false, error: json.message || json.error || 'Failed' };

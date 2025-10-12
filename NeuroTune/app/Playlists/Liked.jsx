@@ -14,7 +14,7 @@ import {
   Share,
 } from 'react-native'
 import COLORS from '../../constants/colors'
-import { API_URL } from '../../constants/api'
+import { API_URL, API } from '../../constants/api'
 import { Ionicons } from '@expo/vector-icons'
 import usePlayerStore from '../../store/playerStore'
 import PlayerContainer from '../../components/PlayerContainer'
@@ -42,13 +42,16 @@ export default function LikedSongs() {
   const fetchLiked = async () => {
     setLoading(true)
     try {
-      let res = await fetch(`${API_URL}api/user/liked`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      let res = await fetch(API('api/user/liked'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       if (!res.ok) {
-        res = await fetch(`${API_URL}api/songs/liked`)
+        console.debug('GET api/user/liked returned', res.status, await res.text()?.slice?.(0,200))
+        res = await fetch(API('api/songs/liked'))
       }
-      const json = await res.json()
-      // Accept either { songs: [...] } or array
-      const list = Array.isArray(json.songs) ? json.songs : Array.isArray(json) ? json : []
+  const text = await res.text()
+  let json
+  try { json = text ? JSON.parse(text) : null } catch (e) { json = null }
+  // Accept either { songs: [...] } or array. Be defensive: json may be null (HTML/error), so avoid accessing json.songs directly.
+  const list = (json && Array.isArray(json.songs)) ? json.songs : (Array.isArray(json) ? json : []);
       setSongs(list)
     } catch (e) {
       console.warn('fetchLiked', e)
@@ -83,10 +86,13 @@ export default function LikedSongs() {
     try {
       if (!token) return Alert.alert('Not signed in')
       // POST toggle or DELETE; try both patterns gracefully
-      let res = await fetch(`${API_URL}api/user/liked/${song._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      let res = await fetch(API(`api/user/liked/${song._id}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      let text = await res.text()
       if (res.status === 404) {
-        res = await fetch(`${API_URL}api/user/liked`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) })
+        res = await fetch(API('api/user/liked'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) })
+        text = await res.text()
       }
+      console.debug('removeFromLiked response', { status: res.status, ok: res.ok, text: text?.slice?.(0,200) })
       if (!res.ok) throw new Error('Failed')
       setSongs((cur) => cur.filter((s) => String(s._id) !== String(song._id)))
       Alert.alert('Removed', 'Song removed from Liked')

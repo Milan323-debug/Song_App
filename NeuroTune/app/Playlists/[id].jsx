@@ -22,7 +22,7 @@ export default function PlaylistDetail() {
       try {
         setError(null);
         setLoading(true);
-        const res = await fetch(`${API_URL}api/playlists/${id}`);
+  const res = await fetch(API(`api/playlists/${id}`));
         const data = await res.json();
         
         if (!isMounted) return;

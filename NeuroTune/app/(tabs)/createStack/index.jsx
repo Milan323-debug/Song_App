@@ -72,7 +72,7 @@ export default function Create() {
   };
 
   const uploadToCloudinary = async (file) => {
-    const signRes = await fetch(`${API_URL}/api/songs/sign`, {
+  const signRes = await fetch(API('api/songs/sign'), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ folder: "songs", resource_type: "raw" }),
@@ -96,7 +96,7 @@ export default function Create() {
   };
 
   const uploadArtworkToCloudinary = async (image) => {
-    const signRes = await fetch(`${API_URL}/api/songs/sign`, {
+  const signRes = await fetch(API('api/songs/sign'), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ folder: "songs/artwork", resource_type: "image" }),
@@ -130,7 +130,7 @@ export default function Create() {
 
       const cloudJson = await uploadToCloudinary(pickedFile);
 
-      const createRes = await fetch(`${API_URL}/api/songs`, {
+  const createRes = await fetch(API('api/songs'), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
