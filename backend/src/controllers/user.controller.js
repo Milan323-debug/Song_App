@@ -218,8 +218,10 @@ export const followUser = asyncHandler(async (req, res) => {
 export const getLikedSongs = asyncHandler(async (req, res) => {
 	try {
 		if (!req.user || !req.user._id) return res.status(401).json({ message: 'Not authenticated' });
-		const user = await User.findById(req.user._id).populate({ path: 'likedSongs', populate: { path: 'user', select: 'username profileImage' } });
+		console.log('getLikedSongs: fetching for user', req.user._id);
+		const user = await User.findById(req.user._id).populate('likedSongs');
 		if (!user) return res.status(404).json({ message: 'User not found' });
+		console.log('getLikedSongs: found liked count=', (user.likedSongs || []).length);
 		return res.status(200).json({ songs: user.likedSongs || [] });
 	} catch (err) {
 		console.error('getLikedSongs: unexpected error', err);

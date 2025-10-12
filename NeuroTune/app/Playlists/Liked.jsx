@@ -12,6 +12,7 @@ import {
   Modal,
   Pressable,
   Share,
+  RefreshControl,
 } from 'react-native'
 import COLORS from '../../constants/colors'
 import { API_URL, API } from '../../constants/api'
@@ -30,6 +31,7 @@ export default function LikedSongs() {
   const [menuVisible, setMenuVisible] = useState(false)
   const [menuTarget, setMenuTarget] = useState(null)
   const [menuAnim] = useState(new Animated.Value(0))
+  const [refreshing, setRefreshing] = useState(false)
   const scrollY = useRef(new Animated.Value(0)).current
   const { token } = useAuthStore()
   const playTrack = usePlayerStore((s) => s.playTrack)
@@ -38,6 +40,17 @@ export default function LikedSongs() {
   useEffect(() => {
     fetchLiked()
   }, [])
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true)
+      await fetchLiked()
+    } catch (e) {
+      console.warn('refresh liked', e)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const fetchLiked = async () => {
     setLoading(true)
@@ -171,6 +184,7 @@ export default function LikedSongs() {
         renderItem={renderItem}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 140 }}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
       />
 
       {/* Context menu modal */}
