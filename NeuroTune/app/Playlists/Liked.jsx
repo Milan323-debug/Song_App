@@ -55,16 +55,18 @@ export default function LikedSongs() {
   const fetchLiked = async () => {
     setLoading(true)
     try {
-      let res = await fetch(API('api/user/liked'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const res = await fetch(API('api/user/liked'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       if (!res.ok) {
-        console.debug('GET api/user/liked returned', res.status, await res.text()?.slice?.(0,200))
-        res = await fetch(API('api/songs/liked'))
+        // if unauthorized, return empty list; otherwise throw to be caught below
+        if (res.status === 401) {
+          setSongs([])
+          return
+        }
+        const txt = await res.text()
+        throw new Error(`GET /api/user/liked failed ${res.status}: ${txt?.slice?.(0,200)}`)
       }
-  const text = await res.text()
-  let json
-  try { json = text ? JSON.parse(text) : null } catch (e) { json = null }
-  // Accept either { songs: [...] } or array. Be defensive: json may be null (HTML/error), so avoid accessing json.songs directly.
-  const list = (json && Array.isArray(json.songs)) ? json.songs : (Array.isArray(json) ? json : []);
+      const json = await res.json()
+      const list = Array.isArray(json.songs) ? json.songs : (Array.isArray(json) ? json : [])
       setSongs(list)
     } catch (e) {
       console.warn('fetchLiked', e)
@@ -98,17 +100,24 @@ export default function LikedSongs() {
   const removeFromLiked = async (song) => {
     try {
       if (!token) return Alert.alert('Not signed in')
-      // POST toggle or DELETE; try both patterns gracefully
-      let res = await fetch(API(`api/user/liked/${song._id}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-      let text = await res.text()
-      if (res.status === 404) {
-        res = await fetch(API('api/user/liked'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) })
-        text = await res.text()
+      // Use new toggle endpoint
+      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error || json.message || 'Failed to toggle like')
       }
-      console.debug('removeFromLiked response', { status: res.status, ok: res.ok, text: text?.slice?.(0,200) })
-      if (!res.ok) throw new Error('Failed')
-      setSongs((cur) => cur.filter((s) => String(s._id) !== String(song._id)))
-      Alert.alert('Removed', 'Song removed from Liked')
+      // If the result indicates the song is now unliked, remove it from UI
+      if (json.liked === false) {
+        setSongs((cur) => cur.filter((s) => String(s._id) !== String(song._id)))
+        Alert.alert('Removed', 'Song removed from Liked')
+      } else {
+        // If liked===true, ensure it exists in the list (rare for remove action)
+        setSongs((cur) => {
+          if (cur.some((s) => String(s._id) === String(song._id))) return cur
+          return [song, ...cur]
+        })
+        Alert.alert('Added', 'Song added to Liked')
+      }
     } catch (e) {
       console.warn('remove liked', e)
       Alert.alert('Error', 'Could not remove liked')

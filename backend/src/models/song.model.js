@@ -15,6 +15,8 @@ const songSchema = new mongoose.Schema(
     artworkPublicId: { type: String, default: "" },
     artworkMimeType: { type: String, default: "" },
     artworkSize: { type: Number, default: 0 },
+    // total likes count
+    likesCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 );

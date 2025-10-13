@@ -4,6 +4,7 @@ import User from '../models/user.model.js';
 import Song from '../models/song.model.js';
 import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/notification.model.js';
+import Song from '../models/song.model.js';
 
 // Get current authenticated user
 export const getCurrentUser = asyncHandler(async (req, res) => {
@@ -217,63 +218,37 @@ export const followUser = asyncHandler(async (req, res) => {
 
 // Get liked songs for current user
 export const getLikedSongs = asyncHandler(async (req, res) => {
-	try {
-		console.log('getLikedSongs: checking auth...');
-		if (!req.user || !req.user._id) return res.status(401).json({ message: 'Not authenticated' });
-		
-		console.log('getLikedSongs: fetching for user', req.user._id);
-		const user = await User.findById(req.user._id).select('likedSongs').lean();
-		if (!user) {
-			console.log('getLikedSongs: user not found');
-			return res.status(404).json({ message: 'User not found' });
-		}
+  const user = req.user;
+  if (!user || !user._id) return res.status(401).json({ message: 'Not authenticated' });
 
-		if (!Array.isArray(user.likedSongs)) {
-			console.log('getLikedSongs: likedSongs is not an array, user=', JSON.stringify(user));
-			return res.status(200).json({ songs: [] });
-		}
+  const found = await User.findById(user._id).select('likedSongs');
+  if (!found) return res.status(404).json({ message: 'User not found' });
 
-		console.log('getLikedSongs: found liked raw count=', user.likedSongs.length);
-		// Log first few samples to help diagnose shape issues
-		console.log('getLikedSongs: sample liked items=', JSON.stringify(user.likedSongs.slice(0,5)));
+  const ids = Array.isArray(found.likedSongs) ? found.likedSongs : [];
+  if (ids.length === 0) return res.status(200).json({ songs: [] });
 
-		// Normalize possible export shapes like { $oid: '...' } or { _id: { $oid: '...' } }
-		const normalizeId = (entry) => {
-			if (!entry && entry !== 0) return null;
-			if (typeof entry === 'string') return entry;
-			if (typeof entry === 'object') {
-				if (entry.$oid && typeof entry.$oid === 'string') return entry.$oid;
-				if (entry._id && typeof entry._id === 'object' && entry._id.$oid && typeof entry._id.$oid === 'string') return entry._id.$oid;
-				// If it's an object like { "$numberLong": "..." } or other forms, try common keys
-				if (entry.$id && typeof entry.$id === 'string') return entry.$id;
-				// fallback: attempt toString()
-				try { return String(entry); } catch (e) { return null; }
-			}
-			return null;
-		};
+  const songs = await Song.find({ _id: { $in: ids } }).populate('user', 'username profileImage').lean();
+  return res.status(200).json({ songs });
+});
 
-		const extracted = (user.likedSongs || []).map(normalizeId).filter(Boolean);
-		console.log('getLikedSongs: normalized ids sample=', extracted.slice(0,5));
+// Public endpoint: get liked songs for a given user id (paginated)
+export const getUserLikedSongs = asyncHandler(async (req, res) => {
+	const { userId } = req.params;
+	if (!userId) return res.status(400).json({ message: 'Missing userId' });
+	const page = Math.max(1, parseInt(req.query.page) || 1);
+	const limit = Math.min(100, parseInt(req.query.limit) || 20);
+	const skip = (page - 1) * limit;
 
-		const validIds = extracted.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
-		if (validIds.length === 0) {
-			console.log('getLikedSongs: no valid liked IDs after normalization');
-			return res.status(200).json({ songs: [] });
-		}
+	const user = await User.findById(userId).select('likedSongs');
+	if (!user) return res.status(404).json({ message: 'User not found' });
 
-		// Use Song model directly to fetch the liked songs
-		const songs = await Song.find({ _id: { $in: validIds } }).lean();
-		console.log('getLikedSongs: fetched songs count=', Array.isArray(songs) ? songs.length : 0);
+	const ids = Array.isArray(user.likedSongs) ? user.likedSongs : [];
+	const total = ids.length;
+	const pageIds = ids.slice(skip, skip + limit).filter(id => mongoose.Types.ObjectId.isValid(String(id)));
 
-		return res.status(200).json({ songs: songs || [] });
-	} catch (err) {
-		console.error('getLikedSongs: unexpected error', {
-			error: err.message,
-			stack: err.stack,
-			user: req.user?._id
-		});
-		return res.status(500).json({ message: 'Failed to fetch liked songs' });
-	}
+	const songs = await Song.find({ _id: { $in: pageIds } }).populate('user', 'username profileImage').lean();
+
+	return res.status(200).json({ songs, page, limit, total });
 });
 
 // Add a song to liked songs

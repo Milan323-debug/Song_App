@@ -120,11 +120,14 @@ export default function Songs() {
     if (!token) return;
     try {
       const res = await fetch(API('api/user/liked'), { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return;
-  let json = null
-  try { json = await res.json(); } catch (e) { json = null }
-  const ids = (json && Array.isArray(json.songs)) ? json.songs.map((s) => String(s._id)) : [];
-  setLikedSet(new Set(ids));
+      if (!res.ok) {
+        if (res.status === 401) return;
+        return;
+      }
+      let json = null
+      try { json = await res.json(); } catch (e) { json = null }
+      const ids = (json && Array.isArray(json.songs)) ? json.songs.map((s) => String(s._id)) : [];
+      setLikedSet(new Set(ids));
     } catch (e) {
       console.warn('fetchLikedIds', e);
     }
@@ -381,19 +384,13 @@ export default function Songs() {
   const addToLiked = async (song) => {
     if (!token) return Alert.alert('Sign in required');
     try {
-      const endpoint = API('api/user/liked');
-      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id }) });
-      const text = await res.text();
-      let json;
-      try { json = text ? JSON.parse(text) : null; } catch (e) { json = null }
-      console.debug('addToLiked response', { endpoint, status: res.status, ok: res.ok, text: text?.slice?.(0, 200) });
-      if (!res.ok) {
-        // surface backend error message if present
-        const message = json?.message || json?.error || text || 'Failed to like';
-        throw new Error(message);
+      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed to like');
+      if (json.liked) {
+        setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
+        Alert.alert('Added', 'Added to Liked Songs');
       }
-      setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
-      Alert.alert('Added', 'Added to Liked Songs');
     } catch (e) {
       console.warn('like failed', e);
       Alert.alert('Error', `Could not add to liked\n${e.message || ''}`);
@@ -403,28 +400,17 @@ export default function Songs() {
   const removeFromLikedViaModal = async (song) => {
     if (!token) return Alert.alert('Sign in required');
     try {
-      const delEndpoint = API(`api/user/liked/${song._id}`);
-      let res = await fetch(delEndpoint, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      let text = await res.text();
-      let json;
-      try { json = text ? JSON.parse(text) : null } catch (e) { json = null }
-      console.debug('removeFromLiked DELETE response', { endpoint: delEndpoint, status: res.status, ok: res.ok, text: text?.slice?.(0,200) });
-      if (!res.ok) {
-        // fallback to POST with remove flag
-        const postEndpoint = API('api/user/liked');
-        res = await fetch(postEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songId: song._id, remove: true }) });
-        text = await res.text();
-        try { json = text ? JSON.parse(text) : null } catch (e) { json = null }
-        console.debug('removeFromLiked POST response', { endpoint: postEndpoint, status: res.status, ok: res.ok, text: text?.slice?.(0,200) });
+      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed to toggle like');
+      if (json.liked === false) {
+        setLikedSet((s) => {
+          const next = new Set(Array.from(s).filter((id) => id !== String(song._id)));
+          return next;
+        });
+        setOptionsForSong(null);
+        Alert.alert('Removed', 'Song removed from Liked');
       }
-      if (!res.ok) throw new Error(json?.message || text || 'Failed to remove liked');
-
-      setLikedSet((s) => {
-        const next = new Set(Array.from(s).filter((id) => id !== String(song._id)));
-        return next;
-      });
-      setOptionsForSong(null);
-      Alert.alert('Removed', 'Song removed from Liked');
     } catch (e) {
       console.warn('remove liked', e);
       Alert.alert('Error', 'Could not remove liked');

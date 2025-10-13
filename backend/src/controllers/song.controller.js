@@ -141,3 +141,63 @@ export const deleteSong = asyncHandler(async (req, res) => {
     res.status(500).json({ error: 'Failed to delete song' });
   }
 });
+
+// Toggle like/unlike for a song by the authenticated user
+export const toggleLike = asyncHandler(async (req, res) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const { songId } = req.params;
+  if (!songId) return res.status(400).json({ error: 'Missing songId' });
+
+  const song = await Song.findById(songId);
+  if (!song) return res.status(404).json({ error: 'Song not found' });
+
+  // determine if user already liked
+  const already = Array.isArray(user.likedSongs) && user.likedSongs.some((s) => String(s) === String(song._id));
+
+  if (!already) {
+    // like: add to user.likedSongs and increment song.likesCount
+    user.likedSongs = user.likedSongs || [];
+    user.likedSongs.push(song._id);
+    song.likesCount = (song.likesCount || 0) + 1;
+  } else {
+    // unlike: remove and decrement (not below 0)
+    user.likedSongs = (user.likedSongs || []).filter((s) => String(s) !== String(song._id));
+    song.likesCount = Math.max(0, (song.likesCount || 0) - 1);
+  }
+
+  // Save both documents; do best-effort transaction if available
+  try {
+    const session = await Song.db.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await user.save({ session });
+        await song.save({ session });
+      });
+    } finally {
+      session.endSession();
+    }
+  } catch (e) {
+    // Transactions might not be available; fall back to sequential saves
+    await user.save();
+    await song.save();
+  }
+
+  return res.status(200).json({ liked: !already, likesCount: song.likesCount });
+});
+
+// Return popular songs sorted by likesCount desc with pagination
+export const getPopular = asyncHandler(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, parseInt(req.query.limit) || 20);
+  const skip = (page - 1) * limit;
+
+  const total = await Song.countDocuments();
+  const songs = await Song.find()
+    .sort({ likesCount: -1, createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('user', 'username profileImage');
+
+  res.status(200).json({ songs, page, limit, total });
+});
