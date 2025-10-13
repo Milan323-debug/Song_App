@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker'
 import COLORS from '../../constants/colors'
 import styles from '../../assets/styles/profile.styles'
 import { useAuthStore } from '../../store/authStore'
-import { API_URL } from '../../constants/api'
+import { API_URL, API } from '../../constants/api'
 
 export default function Profile() {
   const { logout, token, user } = useAuthStore()

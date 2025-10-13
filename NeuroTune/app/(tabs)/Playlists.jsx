@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from "react-native";
 import { useRouter } from "expo-router";
-import { API_URL } from "../../constants/api";
+import { API_URL, API } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import styles from "../../assets/styles/playlists.styles";
 import { Ionicons } from "@expo/vector-icons";

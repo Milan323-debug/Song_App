@@ -18,7 +18,7 @@ import { Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import styles from "../../assets/styles/login.styles";
-import { API_URL } from "../../constants/api";
+import { API_URL, API } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 

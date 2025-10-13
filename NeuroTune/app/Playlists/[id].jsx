@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { API_URL } from "../../constants/api";
+import { API_URL, API } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import styles from "../../assets/styles/playlists.styles";
 import usePlayerStore from "../../store/playerStore";

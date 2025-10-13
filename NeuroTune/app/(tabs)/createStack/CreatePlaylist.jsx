@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import COLORS from "../../../constants/colors";
 import styles from "../../../assets/styles/create.styles";
 import playlistStyles from "../../../assets/styles/playlists.styles";
-import { API_URL } from "../../../constants/api";
+import { API_URL, API } from "../../../constants/api";
 import { useAuthStore } from "../../../store/authStore";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from "expo-router";
