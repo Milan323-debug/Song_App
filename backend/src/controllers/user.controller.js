@@ -247,13 +247,27 @@ export const getLikedSongs = asyncHandler(async (req, res) => {
 		};
 
 		const extracted = raw.map(normalize).filter(Boolean);
+		console.log('getLikedSongs: raw sample=', raw.slice(0,5));
+		console.log('getLikedSongs: extracted ids sample=', extracted.slice(0,5));
+
 		const validIds = extracted.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+		console.log('getLikedSongs: validIds sample=', validIds.slice(0,10));
 		if (validIds.length === 0) {
 			// No valid ids after normalization — return empty list rather than error
 			return res.status(200).json({ songs: [] });
 		}
 
-		const songs = await Song.find({ _id: { $in: validIds } }).populate('user', 'username profileImage').lean();
+		// Coerce to ObjectId array to avoid CastError when passing unusual strings
+		const objectIds = validIds.map((id) => mongoose.Types.ObjectId(String(id)));
+		let songs;
+		try {
+			songs = await Song.find({ _id: { $in: objectIds } }).populate('user', 'username profileImage').lean();
+		} catch (findErr) {
+			console.error('getLikedSongs: Song.find failed', findErr && findErr.stack ? findErr.stack : findErr);
+			// If Song.find fails for some reason, return empty list to avoid 500 loops on the client
+			return res.status(200).json({ songs: [] });
+		}
+
 		return res.status(200).json({ songs });
 	} catch (err) {
 		console.error('getLikedSongs: unexpected error', err && err.stack ? err.stack : err);
