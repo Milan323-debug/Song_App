@@ -4,7 +4,6 @@ import User from '../models/user.model.js';
 import Song from '../models/song.model.js';
 import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/notification.model.js';
-import Song from '../models/song.model.js';
 
 // Get current authenticated user
 export const getCurrentUser = asyncHandler(async (req, res) => {
