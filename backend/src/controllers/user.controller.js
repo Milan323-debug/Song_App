@@ -217,17 +217,48 @@ export const followUser = asyncHandler(async (req, res) => {
 
 // Get liked songs for current user
 export const getLikedSongs = asyncHandler(async (req, res) => {
-  const user = req.user;
-  if (!user || !user._id) return res.status(401).json({ message: 'Not authenticated' });
+	try {
+		const user = req.user;
+		if (!user || !user._id) return res.status(401).json({ message: 'Not authenticated' });
 
-  const found = await User.findById(user._id).select('likedSongs');
-  if (!found) return res.status(404).json({ message: 'User not found' });
+		const found = await User.findById(user._id).select('likedSongs').lean();
+		if (!found) return res.status(404).json({ message: 'User not found' });
 
-  const ids = Array.isArray(found.likedSongs) ? found.likedSongs : [];
-  if (ids.length === 0) return res.status(200).json({ songs: [] });
+		const raw = Array.isArray(found.likedSongs) ? found.likedSongs : [];
+		if (raw.length === 0) return res.status(200).json({ songs: [] });
 
-  const songs = await Song.find({ _id: { $in: ids } }).populate('user', 'username profileImage').lean();
-  return res.status(200).json({ songs });
+		// Normalize various shapes like string, ObjectId, { $oid: '...' }, { _id: { $oid: '...' } }
+		const normalize = (entry) => {
+			if (!entry && entry !== 0) return null;
+			if (typeof entry === 'string') return entry;
+			if (entry instanceof mongoose.Types.ObjectId) return String(entry);
+			if (typeof entry === 'object') {
+				if (entry.$oid && typeof entry.$oid === 'string') return entry.$oid;
+				if (entry._id && typeof entry._id === 'object' && entry._id.$oid) return entry._id.$oid;
+				if (entry.id && typeof entry.id === 'string') return entry.id;
+				// If the object looks like {"$binary":...} or other BSON forms, try JSON stringify then regex - last resort
+				try {
+					const s = JSON.stringify(entry);
+					const m = s.match(/"\$oid"\s*:\s*"([a-fA-F0-9]{24})"/);
+					if (m) return m[1];
+				} catch (e) {}
+			}
+			return null;
+		};
+
+		const extracted = raw.map(normalize).filter(Boolean);
+		const validIds = extracted.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+		if (validIds.length === 0) {
+			// No valid ids after normalization — return empty list rather than error
+			return res.status(200).json({ songs: [] });
+		}
+
+		const songs = await Song.find({ _id: { $in: validIds } }).populate('user', 'username profileImage').lean();
+		return res.status(200).json({ songs });
+	} catch (err) {
+		console.error('getLikedSongs: unexpected error', err && err.stack ? err.stack : err);
+		return res.status(500).json({ error: 'Internal Server Error' });
+	}
 });
 
 // Public endpoint: get liked songs for a given user id (paginated)

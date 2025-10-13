@@ -385,7 +385,11 @@ export default function Songs() {
     if (!token) return Alert.alert('Sign in required');
     try {
       const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      const json = await res.json();
+      let json = null;
+      try { json = await res.json(); } catch (e) {
+        const txt = await res.text();
+        try { json = JSON.parse(txt); } catch (e2) { json = { error: txt }; }
+      }
       if (!res.ok) throw new Error(json.error || json.message || 'Failed to like');
       if (json.liked) {
         setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
@@ -401,7 +405,11 @@ export default function Songs() {
     if (!token) return Alert.alert('Sign in required');
     try {
       const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      const json = await res.json();
+      let json = null;
+      try { json = await res.json(); } catch (e) {
+        const txt = await res.text();
+        try { json = JSON.parse(txt); } catch (e2) { json = { error: txt }; }
+      }
       if (!res.ok) throw new Error(json.error || json.message || 'Failed to toggle like');
       if (json.liked === false) {
         setLikedSet((s) => {
