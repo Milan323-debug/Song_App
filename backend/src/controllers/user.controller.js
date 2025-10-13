@@ -227,17 +227,37 @@ export const getLikedSongs = asyncHandler(async (req, res) => {
 			console.log('getLikedSongs: user not found');
 			return res.status(404).json({ message: 'User not found' });
 		}
-		
+
 		if (!Array.isArray(user.likedSongs)) {
 			console.log('getLikedSongs: likedSongs is not an array, user=', JSON.stringify(user));
 			return res.status(200).json({ songs: [] });
 		}
-		
-		console.log('getLikedSongs: found liked count=', user.likedSongs.length);
-		// Validate liked IDs to prevent CastError
-		const validIds = (user.likedSongs || []).filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+
+		console.log('getLikedSongs: found liked raw count=', user.likedSongs.length);
+		// Log first few samples to help diagnose shape issues
+		console.log('getLikedSongs: sample liked items=', JSON.stringify(user.likedSongs.slice(0,5)));
+
+		// Normalize possible export shapes like { $oid: '...' } or { _id: { $oid: '...' } }
+		const normalizeId = (entry) => {
+			if (!entry && entry !== 0) return null;
+			if (typeof entry === 'string') return entry;
+			if (typeof entry === 'object') {
+				if (entry.$oid && typeof entry.$oid === 'string') return entry.$oid;
+				if (entry._id && typeof entry._id === 'object' && entry._id.$oid && typeof entry._id.$oid === 'string') return entry._id.$oid;
+				// If it's an object like { "$numberLong": "..." } or other forms, try common keys
+				if (entry.$id && typeof entry.$id === 'string') return entry.$id;
+				// fallback: attempt toString()
+				try { return String(entry); } catch (e) { return null; }
+			}
+			return null;
+		};
+
+		const extracted = (user.likedSongs || []).map(normalizeId).filter(Boolean);
+		console.log('getLikedSongs: normalized ids sample=', extracted.slice(0,5));
+
+		const validIds = extracted.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
 		if (validIds.length === 0) {
-			console.log('getLikedSongs: no valid liked IDs');
+			console.log('getLikedSongs: no valid liked IDs after normalization');
 			return res.status(200).json({ songs: [] });
 		}
 
