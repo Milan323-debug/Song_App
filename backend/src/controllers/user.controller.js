@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import User from '../models/user.model.js';
+import Song from '../models/song.model.js';
 import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/notification.model.js';
 
@@ -217,14 +218,40 @@ export const followUser = asyncHandler(async (req, res) => {
 // Get liked songs for current user
 export const getLikedSongs = asyncHandler(async (req, res) => {
 	try {
+		console.log('getLikedSongs: checking auth...');
 		if (!req.user || !req.user._id) return res.status(401).json({ message: 'Not authenticated' });
+		
 		console.log('getLikedSongs: fetching for user', req.user._id);
-		const user = await User.findById(req.user._id).populate('likedSongs');
-		if (!user) return res.status(404).json({ message: 'User not found' });
-		console.log('getLikedSongs: found liked count=', (user.likedSongs || []).length);
-		return res.status(200).json({ songs: user.likedSongs || [] });
+		const user = await User.findById(req.user._id).select('likedSongs').lean();
+		if (!user) {
+			console.log('getLikedSongs: user not found');
+			return res.status(404).json({ message: 'User not found' });
+		}
+		
+		if (!Array.isArray(user.likedSongs)) {
+			console.log('getLikedSongs: likedSongs is not an array, user=', JSON.stringify(user));
+			return res.status(200).json({ songs: [] });
+		}
+		
+		console.log('getLikedSongs: found liked count=', user.likedSongs.length);
+		// Validate liked IDs to prevent CastError
+		const validIds = (user.likedSongs || []).filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+		if (validIds.length === 0) {
+			console.log('getLikedSongs: no valid liked IDs');
+			return res.status(200).json({ songs: [] });
+		}
+
+		// Use Song model directly to fetch the liked songs
+		const songs = await Song.find({ _id: { $in: validIds } }).lean();
+		console.log('getLikedSongs: fetched songs count=', Array.isArray(songs) ? songs.length : 0);
+
+		return res.status(200).json({ songs: songs || [] });
 	} catch (err) {
-		console.error('getLikedSongs: unexpected error', err);
+		console.error('getLikedSongs: unexpected error', {
+			error: err.message,
+			stack: err.stack,
+			user: req.user?._id
+		});
 		return res.status(500).json({ message: 'Failed to fetch liked songs' });
 	}
 });
