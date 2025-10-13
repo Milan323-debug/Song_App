@@ -20,8 +20,6 @@ const router = express.Router();
 
 // public route
 router.get("/profile/:username", getUserProfile);
-// fetch user by id
-router.get("/:id", getUserById);
 // batch fetch users by ids
 router.post('/batch', getUsersBatch);
 
@@ -38,5 +36,8 @@ router.get('/liked', protectRoute, getLikedSongs);
 router.get('/:userId/likes', getUserLikedSongs);
 router.post('/liked', protectRoute, addLikedSong);
 router.delete('/liked/:songId', protectRoute, removeLikedSong);
+
+// fetch user by id (move below specific routes to avoid collisions like '/liked')
+router.get('/:id', getUserById);
 
 export default router;
