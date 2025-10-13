@@ -258,7 +258,17 @@ export const getLikedSongs = asyncHandler(async (req, res) => {
 		}
 
 		// Coerce to ObjectId array to avoid CastError when passing unusual strings
-		const objectIds = validIds.map((id) => mongoose.Types.ObjectId(String(id)));
+		const objectIds = [];
+		for (const id of validIds) {
+			try {
+				objectIds.push(new mongoose.Types.ObjectId(String(id)));
+			} catch (ctorErr) {
+				console.warn('getLikedSongs: failed to construct ObjectId for', id, ctorErr && ctorErr.message);
+			}
+		}
+		if (objectIds.length === 0) {
+			return res.status(200).json({ songs: [] });
+		}
 		let songs;
 		try {
 			songs = await Song.find({ _id: { $in: objectIds } }).populate('user', 'username profileImage').lean();
