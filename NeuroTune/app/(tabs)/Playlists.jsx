@@ -10,6 +10,7 @@ import { useAuthStore } from "../../store/authStore";
 export default function Playlists() {
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const router = useRouter();
@@ -51,7 +52,8 @@ export default function Playlists() {
 
   const fetchPlaylists = async () => {
     try {
-      setLoading(true);
+      // If already refreshing (user pulled) don't flip the full-page loading indicator
+      if (!refreshing) setLoading(true);
       const res = await fetch(`${API_URL}api/playlists`);
       const data = await res.json();
       // backend returns { playlists }
@@ -61,19 +63,41 @@ export default function Playlists() {
       console.error("fetchPlaylists error", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await fetchPlaylists();
+    } catch (err) {
+      console.error('Refresh error', err);
+    } finally {
+      setRefreshing(false);
     }
   };
 
   const renderItem = ({ item }) => {
     const isOwner = user && item.user && String(user._id) === String(item.user._id);
+    // prefer playlist-level artwork fields; fall back to first song artwork when not present
+    const playlistArtwork =
+      item.imageUrl ||
+      item.artworkUrl ||
+      (item.image && (item.image.url || item.image.secure_url)) ||
+      (item.artwork && (item.artwork.url || item.artwork.secure_url)) ||
+      (item.images && (item.images[0]?.secure_url || item.images[0]?.url)) ||
+      (item.artworkUrl && item.artworkUrl) || null;
+
+    const fallbackSongArtwork = item.songs && item.songs[0] && (item.songs[0].artworkUrl || item.songs[0].artwork);
 
     return (
       <TouchableOpacity style={styles.card} onPress={() => router.push(`/Playlists/${item._id}`)}>
         <View style={styles.cardLeft}>
-          {item.imageUrl ? (
-            <Image source={{ uri: item.imageUrl }} style={styles.artwork} />
-          ) : item.songs && item.songs[0] && item.songs[0].artworkUrl ? (
-            <Image source={{ uri: item.songs[0].artworkUrl }} style={styles.artwork} />
+          {playlistArtwork ? (
+            <Image source={{ uri: playlistArtwork }} style={styles.artwork} />
+          ) : fallbackSongArtwork ? (
+            <Image source={{ uri: typeof fallbackSongArtwork === 'string' ? fallbackSongArtwork : fallbackSongArtwork.url }} style={styles.artwork} />
           ) : (
             <View style={[styles.artwork, { backgroundColor: COLORS.cardBackground }]} />
           )}
@@ -176,6 +200,8 @@ export default function Playlists() {
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
         contentContainerStyle={{ padding: 16 }}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListEmptyComponent={() => (
           <View style={{ padding: 24 }}>
             <Text style={{ color: COLORS.textSecondary }}>No playlists yet. Create one from the Create tab.</Text>

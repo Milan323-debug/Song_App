@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -22,21 +22,18 @@ import COLORS from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  useAnimatedGestureHandler,
-  useAnimatedScrollHandler,
-} from "react-native-reanimated";
+import Reanimated, { useSharedValue, useAnimatedScrollHandler } from "react-native-reanimated";
+import { Animated as RNAnimated, Share } from 'react-native';
 import { PanGestureHandler } from "react-native-gesture-handler";
 import styles from "../../assets/styles/songs.styles";
+import ContextMenu from "../../components/ContextMenu";
 
-const SONGS_BG = "#071019";
-const SONGS_CARD = "#0f1724";
-const SONGS_BORDER = "#15202b";
-const SONGS_TEXT = "#E6F7F2";
-const SONGS_TEXT_LIGHT = "#9AA6B2";
+
+const SONGS_BG = COLORS.background || "#000";
+const SONGS_CARD = COLORS.cardBackground || "#0f1724";
+const SONGS_BORDER = COLORS.border || "#15202b";
+const SONGS_TEXT = COLORS.textPrimary || "#E6F7F2";
+const SONGS_TEXT_LIGHT = COLORS.textSecondary || "#9AA6B2";
 const ACCENT = COLORS.primary || "#22c1a9";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -48,6 +45,7 @@ export default function Songs() {
   const [songs, setSongs] = useState([]);
   const [likedSet, setLikedSet] = useState(new Set());
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
@@ -55,6 +53,8 @@ export default function Songs() {
   const [pickedArtwork, setPickedArtwork] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [optionsForSong, setOptionsForSong] = useState(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const menuAnim = useRef(new RNAnimated.Value(0)).current;
 
   const playerCurrent = usePlayerStore((s) => s.current);
   const playerIsPlaying = usePlayerStore((s) => s.isPlaying);
@@ -130,6 +130,17 @@ export default function Songs() {
       setLikedSet(new Set(ids));
     } catch (e) {
       console.warn('fetchLikedIds', e);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchSongs(), fetchLikedIds()]);
+    } catch (e) {
+      console.warn('onRefresh', e);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -355,6 +366,8 @@ export default function Songs() {
 
   const showSongOptions = (item) => {
     setOptionsForSong(item);
+    setMenuVisible(true);
+    RNAnimated.timing(menuAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
   };
 
   const confirmDeleteSong = (item) => {
@@ -393,7 +406,7 @@ export default function Songs() {
       if (!res.ok) throw new Error(json.error || json.message || 'Failed to like');
       if (json.liked) {
         setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
-        Alert.alert('Added', 'Added to Liked Songs');
+        // No success alert on add - UI updates visually
       }
     } catch (e) {
       console.warn('like failed', e);
@@ -416,13 +429,39 @@ export default function Songs() {
           const next = new Set(Array.from(s).filter((id) => id !== String(song._id)));
           return next;
         });
-        setOptionsForSong(null);
+        // keep menu visible until closed by context menu
+        setMenuVisible(false);
+        setTimeout(() => setOptionsForSong(null), 220);
         Alert.alert('Removed', 'Song removed from Liked');
       }
     } catch (e) {
       console.warn('remove liked', e);
       Alert.alert('Error', 'Could not remove liked');
     }
+  };
+
+  const playNext = (song) => {
+    // naive play next: insert song after current index and start when current finishes
+    // for now, just start playing immediately
+    playSong(song, songs.findIndex((s) => String(s._id) === String(song._id)));
+    setMenuVisible(false);
+    setTimeout(() => setOptionsForSong(null), 220);
+  };
+
+  const addToPlaylist = (song) => {
+    setMenuVisible(false);
+    setTimeout(() => setOptionsForSong(null), 220);
+    Alert.alert('Add to Playlist', 'This feature is coming soon');
+  };
+
+  const shareSong = async (song) => {
+    try {
+      await Share.share({ message: `${song.title} — ${song.artist || ''}\n${song.url || ''}` });
+    } catch (e) {
+      console.warn('share failed', e);
+    }
+    setMenuVisible(false);
+    setTimeout(() => setOptionsForSong(null), 220);
   };
 
   const repeatSongOption = async (item) => {
@@ -462,13 +501,15 @@ export default function Songs() {
           <Text style={styles.songTitle}>{item.title}</Text>
           <Text style={styles.songArtist}>{item.artist || item.user?.username || ""}</Text>
         </View>
-        {/* Like / Add to Liked: show a circular plus if not liked, otherwise hide */}
+        {/* Like / Add to Liked: show a small plus if not liked, otherwise a small tick */}
         {currentUser && (
           likedSet.has(String(item._id)) ? (
-            <View style={{ width: 44, height: 44, justifyContent: 'center', alignItems: 'center' }} />
+            <View style={{ width: 22, height: 22, borderRadius: 11, marginLeft: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(34,193,169,0.12)', overflow: 'hidden' }}>
+              <Ionicons name="checkmark" size={12} color={ACCENT} />
+            </View>
           ) : (
-            <TouchableOpacity onPress={() => addToLiked(item)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
-              <Ionicons name="add" size={18} color={COLORS.background} />
+            <TouchableOpacity onPress={() => addToLiked(item)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginLeft: 8, overflow: 'hidden' }}>
+              <Ionicons name="add" size={14} color={ACCENT} />
             </TouchableOpacity>
           )
         )}
@@ -486,74 +527,43 @@ export default function Songs() {
 
   if (loading) {
     return (
-      <LinearGradient colors={["#071019", "#0f1724"]} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <LinearGradient colors={[SONGS_BG, SONGS_CARD]} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color={ACCENT} />
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={["#071019", "#0f1724"]} style={{ flex: 1 }}>
-      <Animated.View style={[{ flex: 1 }]}>
-        <Animated.FlatList
+    <LinearGradient colors={[SONGS_BG, SONGS_CARD]} style={{ flex: 1 }}>
+      <Reanimated.View style={[{ flex: 1 }]}>
+        <Reanimated.FlatList
           data={songs}
           keyExtractor={(i) => i._id}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 12, paddingTop: 20 }}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
         />
-      </Animated.View>
+      </Reanimated.View>
 
-      {/* Options modal for each song (Repeat / Delete) */}
-      <Modal
-        visible={!!optionsForSong}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOptionsForSong(null)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}>
-          <View style={{ backgroundColor: SONGS_CARD, borderRadius: 12, padding: 12 }}>
-            <Text style={{ color: SONGS_TEXT, fontWeight: '700', marginBottom: 8 }}>Song options</Text>
-            <Text style={{ color: SONGS_TEXT_LIGHT, marginBottom: 2 ,justifyContent: 'center', textAlign: 'center',fontSize: 16}}>{optionsForSong?.title}</Text>
-
-            <TouchableOpacity
-              style={{ padding: 10, borderRadius: 8, marginBottom: 3, backgroundColor: 'transparent' }}
-              onPress={() => {
-                repeatSongOption(optionsForSong);
-              }}
-            >
-              <Text style={{ color: ACCENT, fontWeight: '600' }}>Repeat this song</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ padding: 12, borderRadius: 8, marginBottom: 8, backgroundColor: 'transparent' }}
-              onPress={() => {
-                // ask for confirmation inside confirmDeleteSong
-                confirmDeleteSong(optionsForSong);
-              }}
-            >
-              <Text style={{ color: '#ff6b6b', fontWeight: '600' }}>Delete song</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ padding: 12, borderRadius: 8, marginTop: 6, alignItems: 'center' }}
-              onPress={() => setOptionsForSong(null)}
-            >
-              <Text style={{ color: SONGS_TEXT_LIGHT, fontSize: 16 }}>Cancel</Text>
-            </TouchableOpacity>
-            {/* If the song is liked by the user, show remove from liked option */}
-            {optionsForSong && likedSet.has(String(optionsForSong._id)) && (
-              <TouchableOpacity
-                style={{ padding: 12, borderRadius: 8, marginTop: 8, alignItems: 'center' }}
-                onPress={() => removeFromLikedViaModal(optionsForSong)}
-              >
-                <Text style={{ color: '#ff6b6b', fontWeight: '600' }}>Remove from Liked Songs</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* Shared ContextMenu for song options */}
+      <ContextMenu
+        menuVisible={menuVisible}
+        closeMenu={() => {
+          RNAnimated.timing(menuAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
+            setMenuVisible(false);
+            setOptionsForSong(null);
+          });
+        }}
+        menuAnim={menuAnim}
+        menuTarget={optionsForSong}
+        playNext={playNext}
+        removeFromLiked={(s) => removeFromLikedViaModal(s)}
+        addToPlaylist={addToPlaylist}
+        shareSong={shareSong}
+      />
     </LinearGradient>
   );
 }

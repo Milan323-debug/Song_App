@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, ActivityIndicator, Alert, StyleSheet, Animated } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
 import COLORS from "../constants/colors";
 import styles from "../assets/styles/create.styles";
@@ -21,6 +21,9 @@ export default function CreatePlaylist({ navigation }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const router = useRouter();
   const [playlistCount, setPlaylistCount] = useState(null);
+  // local playlist state for added songs
+  const [playlistSongs, setPlaylistSongs] = useState([])
+  const bounceAnim = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
     fetchSongs();
@@ -147,110 +150,120 @@ export default function CreatePlaylist({ navigation }) {
 
   if (loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator color={COLORS.primary} /></View>;
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={["rgba(0,0,0,0.9)", "rgba(0,0,0,0.6)"]} style={{ padding: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity 
-            onPress={pickImage}
-            style={{
-              width: 120,
-              height: 120,
-              borderRadius: 8,
-              backgroundColor: 'rgba(255,255,255,0.03)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              overflow: 'hidden'
-            }}
-          >
-            {image ? (
-              <Image 
-                source={{ uri: image.uri }} 
-                style={{ width: '100%', height: '100%' }} 
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={{ alignItems: 'center' }}>
-                <Ionicons name="image-outline" size={40} color={COLORS.primary} />
-                <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginTop: 4 }}>Add Cover</Text>
-              </View>
-            )}
-            {uploadingImage && (
-              <View style={{
-                ...StyleSheet.absoluteFillObject,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <ActivityIndicator color={COLORS.primary} />
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <TextInput
-              style={{ 
-                color: COLORS.textPrimary, 
-                fontSize: 24, 
-                fontWeight: '800',
-                padding: 0
-              }}
-              placeholder="New Playlist"
-              placeholderTextColor={COLORS.textSecondary}
-              value={name}
-              onChangeText={setName}
-            />
-            <Text style={{ color: COLORS.textSecondary, marginTop: 6 }}>Create a playlist by adding songs</Text>
-          </View>
-        </View>
-      </LinearGradient>
-      <View style={[styles.card, { margin: 12, marginTop: 0 }] }>
-        <Text style={styles.title}>Add Songs</Text>
-        <Text style={{ color: COLORS.textSecondary, marginTop: 8 }}>{selected.length} songs selected</Text>
-        <FlatList
-          data={songs}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
-              {item.artworkUrl ? <Image source={{ uri: item.artworkUrl }} style={{ width: 56, height: 56, borderRadius: 6 }} /> : <View style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: COLORS.cardBackground }} />}
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={{ color: COLORS.textPrimary }}>{item.title}</Text>
-                <Text style={{ color: COLORS.textSecondary }}>{item.artist}</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={() => toggleSelect(item)} 
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: selected.some((s) => String(s._id) === String(item._id)) 
-                    ? `${COLORS.primary}20`
-                    : 'rgba(255,255,255,0.05)',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginLeft: 8
-                }}
-              >
-                <Ionicons 
-                  name={selected.some((s) => String(s._id) === String(item._id)) 
-                    ? "checkmark" 
-                    : "add"
-                  } 
-                  size={24} 
-                  color={selected.some((s) => String(s._id) === String(item._id)) 
-                    ? COLORS.primary 
-                    : COLORS.textSecondary
-                  } 
-                />
-              </TouchableOpacity>
+  // mock recommended songs if none fetched
+  const recommended = songs && songs.length > 0 ? songs : [
+    { _id: '1', title: 'Stranger Things (feat. OneRepublic)', artist: 'Kygo, OneRepublic', artworkUrl: null },
+    { _id: '2', title: 'Anytime Anywhere', artist: 'milet', artworkUrl: null },
+    { _id: '3', title: 'Suisou No Buranko', artist: 'Kitri', artworkUrl: null },
+    { _id: '4', title: 'Hide (feat. Seezyn)', artist: 'Juice WRLD, Seezyn', artworkUrl: null },
+    { _id: '5', title: 'Original (from Dolittle)', artist: 'Sia', artworkUrl: null },
+  ]
+
+  const onAddSong = (song) => {
+    // if already added, remove; otherwise add
+    const exists = playlistSongs.some(s => String(s._id) === String(song._id))
+    if (exists) {
+      setPlaylistSongs(playlistSongs.filter(s => String(s._id) !== String(song._id)))
+      return
+    }
+    // simple bounce animation and add
+    Animated.sequence([
+      Animated.timing(bounceAnim, { toValue: 1.12, duration: 140, useNativeDriver: true }),
+      Animated.timing(bounceAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+    ]).start()
+    setPlaylistSongs([song, ...playlistSongs])
+  }
+
+  const renderSong = ({ item }) => {
+    const added = playlistSongs.some(s => String(s._id) === String(item._id))
+    return (
+      <Animated.View style={{ transform: [{ scale: added ? bounceAnim : 1 }], backgroundColor: 'transparent' }}>
+        <View style={localStyles.songRow}>
+          {item.artworkUrl ? (
+            <Image source={{ uri: item.artworkUrl }} style={localStyles.songCover} />
+          ) : (
+            <View style={[localStyles.songCover, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name="musical-notes" size={28} color={'rgba(255,255,255,0.85)'} />
             </View>
           )}
-          contentContainerStyle={{ paddingBottom: 200 }}
-        />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={localStyles.songTitle}>{item.title}</Text>
+            <Text style={localStyles.songArtist}>{item.artist}</Text>
+          </View>
+          <TouchableOpacity onPress={() => onAddSong(item)} style={[localStyles.addBtn, added && localStyles.addedBtn]} activeOpacity={0.85}>
+            <Ionicons name={added ? 'checkmark' : 'add'} size={18} color={added ? COLORS.black : COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    )
+  }
 
-        <TouchableOpacity style={[styles.button, { marginTop: 12 }]} onPress={createPlaylist} disabled={creating}>
-          {creating ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.buttonText}>Create Playlist</Text>}
+  return (
+    <View style={[localStyles.container, { backgroundColor: COLORS.background }]}> 
+      <LinearGradient colors={["rgba(0,0,0,0.9)", "rgba(0,0,0,0.6)"]} style={localStyles.header}> 
+        <TouchableOpacity onPress={() => navigation.goBack()} style={localStyles.backIcon}>
+          <Ionicons name="chevron-back" size={26} color={COLORS.textPrimary} />
         </TouchableOpacity>
+        <View style={localStyles.headerInner}>
+          <View style={localStyles.coverPlaceholder}>
+            {image ? <Image source={{ uri: image.uri }} style={localStyles.coverImage} /> : <Ionicons name="musical-notes" size={56} color={'rgba(255,255,255,0.9)'} />}
+          </View>
+          <View style={{ marginLeft: 16 }}>
+            <Text style={localStyles.playlistTitle}>{name && name.trim() ? name : `My playlist #${(playlistCount || 0) + 1}`}</Text>
+            <Text style={localStyles.creatorText}>{user?.name || 'You'}</Text>
+          </View>
+        </View>
+        <View style={{ alignItems: 'center', width: 120 }}>
+          <TouchableOpacity style={localStyles.addToBtn} onPress={createPlaylist} disabled={creating}>
+            <Ionicons name="add" size={20} color={COLORS.black} />
+            <Text style={localStyles.addToBtnText}>Add to this playlist</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      <View style={localStyles.card}> 
+        <Text style={localStyles.sectionTitle}>Recommended Songs</Text>
+        <Animated.FlatList
+          data={recommended}
+          keyExtractor={(i) => String(i._id)}
+          renderItem={renderSong}
+          contentContainerStyle={{ paddingBottom: 140 }}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+
+      {/* Bottom navigation */}
+      <View style={localStyles.bottomNav}>
+        <TouchableOpacity style={localStyles.navItem}><Ionicons name="home" size={22} color={COLORS.textSecondary} /><Text style={localStyles.navText}>Home</Text></TouchableOpacity>
+        <TouchableOpacity style={localStyles.navItem}><Ionicons name="search" size={22} color={COLORS.textSecondary} /><Text style={localStyles.navText}>Search</Text></TouchableOpacity>
+        <TouchableOpacity style={localStyles.navItem}><Ionicons name="library" size={22} color={COLORS.textSecondary} /><Text style={localStyles.navText}>Your Library</Text></TouchableOpacity>
+        <TouchableOpacity style={localStyles.navItem}><Ionicons name="sparkles" size={22} color={COLORS.textSecondary} /><Text style={localStyles.navText}>Premium</Text></TouchableOpacity>
+        <TouchableOpacity style={localStyles.navItem}><Ionicons name="add-circle" size={22} color={COLORS.textSecondary} /><Text style={localStyles.navText}>Create</Text></TouchableOpacity>
       </View>
     </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0b0b0b' },
+  header: { padding: 16, paddingTop: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'transparent' },
+  headerInner: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  backIcon: { position: 'absolute', left: 12, top: 34, padding: 8, zIndex: 20 },
+  coverPlaceholder: { width: 120, height: 120, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.03)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  coverImage: { width: '100%', height: '100%' },
+  playlistTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  creatorText: { color: 'rgba(255,255,255,0.7)', marginTop: 6 },
+  addToBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, elevation: 6, shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12 },
+  addToBtnText: { color: '#000', fontWeight: '700', marginLeft: 8 },
+  card: { flex: 1, marginTop: 8, paddingHorizontal: 16 },
+  sectionTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 12 },
+  songRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
+  songCover: { width: 56, height: 56, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)' },
+  songTitle: { color: '#fff', fontWeight: '700' },
+  songArtist: { color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  addedBtn: { backgroundColor: `${COLORS.primary}` },
+  bottomNav: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 72, backgroundColor: '#0b0b0b', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: -6 }, shadowRadius: 12 },
+  navItem: { alignItems: 'center', justifyContent: 'center' },
+  navText: { color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 4 }
+})

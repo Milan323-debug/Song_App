@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   errorText: {
-    color: "#FF6B6B",
+    color: COLORS.error,
     marginTop: 6,
     fontSize: 13,
   },

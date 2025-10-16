@@ -286,19 +286,19 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="createStack"
+          options={{
+            title: "Create",
+            tabBarButton: (props) => <CreateTabButton {...props} />,
+          }}
+        />
+        <Tabs.Screen
           name="Liked"
           options={{
             title: "Liked",
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="heart" size={size} color={color} />
             ),
-          }}
-        />
-        <Tabs.Screen
-          name="createStack"
-          options={{
-            title: "Create",
-            tabBarButton: (props) => <CreateTabButton {...props} />,
           }}
         />
         <Tabs.Screen

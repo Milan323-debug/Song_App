@@ -6,12 +6,12 @@ import COLORS from '../constants/colors'
 import styles from '../assets/styles/playerContainer.styles'
 import usePlayerStore from '../store/playerStore'
 
-// Match the dark Songs screen palette
-const SONGS_BG = '#071019'
-const SONGS_CARD = '#0f1724'
-const SONGS_BORDER = '#15202b'
-const SONGS_TEXT = '#E6F7F2'
-const SONGS_TEXT_LIGHT = '#9AA6B2'
+// Theme-based colors
+const SONGS_BG = COLORS.background || '#071019'
+const SONGS_CARD = COLORS.cardBackground || '#0f1724'
+const SONGS_BORDER = COLORS.border || '#15202b'
+const SONGS_TEXT = COLORS.textPrimary || '#E6F7F2'
+const SONGS_TEXT_LIGHT = COLORS.textSecondary || '#9AA6B2'
 const ACCENT = COLORS.primary || '#22c1a9'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')

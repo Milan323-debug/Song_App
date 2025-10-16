@@ -5,7 +5,7 @@ import Song from "../models/song.model.js";
 // Create a playlist - protected
 export const createPlaylist = asyncHandler(async (req, res) => {
   const user = req.user;
-  const { title, description, songs } = req.body;
+  const { title, description, songs, imageUrl, artworkUrl } = req.body;
 
   if (!title) return res.status(400).json({ error: "Title is required" });
 
@@ -17,7 +17,16 @@ export const createPlaylist = asyncHandler(async (req, res) => {
     validSongs = found.map((s) => s._id);
   }
 
-  const playlist = await Playlist.create({ title, description: description || "", user: user._id, songs: validSongs });
+  // prefer explicit imageUrl or artworkUrl from client
+  const posterUrl = imageUrl || artworkUrl || undefined;
+
+  const playlist = await Playlist.create({
+    title,
+    description: description || "",
+    user: user._id,
+    songs: validSongs,
+    ...(posterUrl ? { imageUrl: posterUrl } : {}),
+  });
   res.status(201).json({ playlist });
 });
 
@@ -59,7 +68,7 @@ export const getPlaylist = asyncHandler(async (req, res) => {
 export const updatePlaylist = asyncHandler(async (req, res) => {
   const user = req.user;
   const { id } = req.params;
-  const { title, description, songs } = req.body;
+  const { title, description, songs, imageUrl, artworkUrl } = req.body;
 
   const playlist = await Playlist.findById(id);
   if (!playlist) return res.status(404).json({ error: "Playlist not found" });
@@ -72,6 +81,10 @@ export const updatePlaylist = asyncHandler(async (req, res) => {
     const found = await Song.find({ _id: { $in: songs } }).select("_id");
     playlist.songs = found.map((s) => s._id);
   }
+
+  // allow updating poster image
+  const posterUrl = imageUrl || artworkUrl;
+  if (typeof posterUrl !== 'undefined') playlist.imageUrl = posterUrl;
 
   await playlist.save();
   const updated = await Playlist.findById(id).populate("user", "username profileImage").populate("songs");

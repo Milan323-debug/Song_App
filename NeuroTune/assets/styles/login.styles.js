@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     fontWeight: "800",
-    color: "#00E5FF",
+    color: COLORS.primary,
     marginBottom: 6,
     // prefer Inter or Poppins if available
     fontFamily: "Inter-Black",
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   errorText: {
-    color: "#FF6B6B",
+    color: COLORS.error,
     marginTop: 6,
     fontSize: 13,
   },
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     fontFamily: "Inter-Regular",
   },
   link: {
-    color: "#00E5FF",
+    color: COLORS.primary,
     fontWeight: "700",
     fontFamily: "Inter-SemiBold",
   },
