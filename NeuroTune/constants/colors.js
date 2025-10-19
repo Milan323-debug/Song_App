@@ -1,6 +1,6 @@
 // NEUROTUNES FUTURISTIC
 const COLORS = {
-  primary: "#00BBF9",          // Electric Blue (main brand accent)
+  primary: "rgba(0, 255, 225, 1)",          // Electric Blue (main brand accent)
   textPrimary: "#F8F9FA",      // Crisp White for main text
   textSecondary: "#90E0EF",    // Soft Cyan for secondary text
   textDark: "#9B5DE5",         // Neon Purple accent for headings/emphasis
@@ -9,6 +9,7 @@ const COLORS = {
   cardBackground: "#0F3460",   // Midnight Blue for cards
   inputBackground: "#1A1A2E",  // Darker bluish background for inputs
   border: "#00F5D4",           // Aqua glow for borders/highlights
+  neonAqua: "rgba(0, 255, 225, 1)", // Bright neon aqua used for seam/play highlights
   white: "#ffffff",
   black: "#000000",
   error: "#FF6B6B",            // Vivid Red for errors/alerts

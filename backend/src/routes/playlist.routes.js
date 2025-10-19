@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get("/", getPlaylists);
 router.get("/:id", getPlaylist);
+router.get("/mine", protectRoute, getMyPlaylists);
 
 // protected routes
 router.post("/", protectRoute, createPlaylist);

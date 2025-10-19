@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import GradientBackground from '../../../components/GradientBackground'
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AddCircleButton from '../../../components/AddCircleButton';
 
 export default function CreatePlaylist({ navigation }) {
   const { token, user } = useAuthStore();
@@ -146,15 +147,34 @@ export default function CreatePlaylist({ navigation }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || json.message || 'Failed to create playlist');
+      const created = json.playlist || json; // backend returns { playlist }
       Alert.alert('Playlist created');
-      // navigate back to Playlists list
-      router.push('/Playlists');
+      // navigate to the created playlist detail
+      if (created && created._id) {
+        // reset form after navigation so the create screen is fresh when user returns
+        router.push(`/Playlists/${created._id}`);
+        resetForm();
+      } else {
+        // fallback to list
+        resetForm();
+        router.push('/Playlists');
+      }
     } catch (e) {
       console.error('createPlaylist error', e);
       Alert.alert('Create failed', e.message || String(e));
     } finally {
       setCreating(false);
     }
+  };
+
+  const resetForm = () => {
+    setName('');
+    setImage(null);
+    setSelected([]);
+    setPlaylistSongs([]);
+    setCreateModalVisible(false);
+    // increment local playlist count so default names move forward
+    setPlaylistCount((prev) => (typeof prev === 'number' ? prev + 1 : prev));
   };
 
   if (loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator color={COLORS.primary} /></View>;
@@ -206,11 +226,7 @@ export default function CreatePlaylist({ navigation }) {
             <Text style={[localStyles.songTitle, { color: COLORS.textPrimary }]} numberOfLines={1}>{item.title}</Text>
             <Text style={[localStyles.songArtist, { color: COLORS.textSecondary }]} numberOfLines={1}>{item.artist}</Text>
           </View>
-          <TouchableOpacity onPress={() => onAddSong(item)} style={[localStyles.plusBtn]} activeOpacity={0.85}>
-            <View style={[localStyles.plusInner, added ? { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '33' } : null]}>
-              <Ionicons name={added ? 'checkmark' : 'add'} size={18} color={added ? COLORS.primary : COLORS.primary} />
-            </View>
-          </TouchableOpacity>
+          <AddCircleButton isAdded={added} onPress={() => onAddSong(item)} size={36} />
         </View>
       </Animated.View>
     )
@@ -263,9 +279,19 @@ export default function CreatePlaylist({ navigation }) {
                 <Text style={{ marginLeft: 12, color: COLORS.textSecondary }}>Upload a cover (optional)</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 18 }}>
-                <Pressable onPress={() => setCreateModalVisible(false)} style={localStyles.modalButton}><Text style={localStyles.modalButtonText}>Cancel</Text></Pressable>
-                <Pressable onPress={async () => { setCreateModalVisible(false); await createPlaylist(); }} style={[localStyles.modalButton, { backgroundColor: COLORS.primary }]}>
-                  <Text style={[localStyles.modalButtonText, { color: COLORS.black }]}>Create</Text>
+                <Pressable onPress={() => setCreateModalVisible(false)} disabled={creating} style={localStyles.modalButton}>
+                  <Text style={localStyles.modalButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => { await createPlaylist(); }}
+                  style={[localStyles.modalButton, { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }]}
+                  disabled={creating || uploadingImage}
+                >
+                  {creating ? (
+                    <ActivityIndicator color={COLORS.black} />
+                  ) : (
+                    <Text style={[localStyles.modalButtonText, { color: COLORS.black }]}>Create</Text>
+                  )}
                 </Pressable>
               </View>
             </View>

@@ -54,7 +54,8 @@ export default function Playlists() {
     try {
       // If already refreshing (user pulled) don't flip the full-page loading indicator
       if (!refreshing) setLoading(true);
-      const res = await fetch(`${API_URL}api/playlists`);
+      const endpoint = token ? `${API_URL}api/playlists/mine` : `${API_URL}api/playlists`;
+      const res = await fetch(endpoint, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const data = await res.json();
       // backend returns { playlists }
       if (data && Array.isArray(data.playlists)) setPlaylists(data.playlists);
@@ -211,7 +212,7 @@ export default function Playlists() {
       <TouchableOpacity
         onPress={() => router.push('/(tabs)/createStack/CreatePlaylist')}
         style={{ position: 'absolute', right: 18, bottom: 120, backgroundColor: COLORS.primary, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: COLORS.white, fontSize: 28 }}>+</Text>
+        <Text style={{ color: COLORS.background, fontSize: 40 }}>+</Text>
       </TouchableOpacity>
     </View>
   );

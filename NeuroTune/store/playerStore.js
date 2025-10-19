@@ -163,12 +163,16 @@ const usePlayerStore = create((set, get) => {
           // still update UI optimistically
           set({ position: to })
         } else {
-          await soundRef.current.setPositionAsync(to)
-          set({ position: to })
+          try {
+            await soundRef.current.setPositionAsync(to)
+            set({ position: to })
+          } catch (e) {
+            console.warn('[playerStore] setPositionAsync failed', e)
+          }
         }
       } else {
         // no sound available to seek - log for debugging
-        console.warn('seek called but no sound is loaded')
+        console.warn('[playerStore] seek called but no sound is loaded (soundRef.current null)')
       }
     } catch (e) { console.warn('seek error', e) }
   }

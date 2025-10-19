@@ -36,6 +36,14 @@ export const getPlaylists = asyncHandler(async (req, res) => {
   res.status(200).json({ playlists });
 });
 
+// Get current user's playlists (protected)
+export const getMyPlaylists = asyncHandler(async (req, res) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const playlists = await Playlist.find({ user: user._id }).sort({ createdAt: -1 }).populate('user', 'username profileImage').populate('songs');
+  res.status(200).json({ playlists });
+});
+
 // Get single playlist
 export const getPlaylist = asyncHandler(async (req, res) => {
   const { id } = req.params;

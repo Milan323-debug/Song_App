@@ -12,7 +12,9 @@ import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import COLORS from "../../constants/colors";
+import { LinearGradient } from 'expo-linear-gradient';
 import { useUiStore } from "../../store/uiStore";
+import PlayerContainer from '../../components/PlayerContainer'
 
 function CreateTabButton(props) {
   const setChooserVisible = useUiStore((s) => s.setChooserVisible);
@@ -261,9 +263,18 @@ export default function TabLayout() {
             paddingBottom: insets.bottom,
           },
           tabBarBackground: () => (
-            <View style={{ flex: 1 }}>
-              {/* put gradient or whatever background */}
-            </View>
+            <LinearGradient
+              colors={[
+                'rgba(11,11,11,0.98)', // solid dark at very bottom for contrast with system UI
+                'rgba(0, 0, 0, 1)',
+                'rgba(0, 0, 0, 0.62)',
+                'transparent',
+              ]}
+              locations={[0, 0.3, 0.7, 1]}
+              start={{ x: 0.5, y: 1 }}
+              end={{ x: 0.5, y: 0 }}
+              style={{ flex: 1 }}
+            />
           ),
         }}
       >
@@ -312,6 +323,8 @@ export default function TabLayout() {
         />
   {/* CreatePlaylist is nested under createStack (app/(tabs)/createStack/CreatePlaylist.jsx) and is not its own tab */}
       </Tabs>
+
+  <PlayerContainer tabBarHeight={tabBarHeight} />
 
       <OverlayMenu
         visible={chooserVisible}

@@ -306,6 +306,53 @@ export default function LikedSongs() {
     await onPlay(first)
   }, [songs, onPlay, current, playerIsPlaying, pause, resume])
 
+  // Listening mode UI
+  const shuffle = usePlayerStore((s) => s.shuffle)
+  const repeatMode = usePlayerStore((s) => s.repeatMode)
+  const setShuffle = usePlayerStore((s) => s.setShuffle)
+  const setRepeatMode = usePlayerStore((s) => s.setRepeatMode)
+
+  const [modeSheetVisible, setModeSheetVisible] = useState(false)
+
+  const openModeSheet = () => setModeSheetVisible(true)
+  const closeModeSheet = () => setModeSheetVisible(false)
+
+  const applyMode = (mode) => {
+    // mode: 'order' | 'shuffle' | 'repeat-one' | 'repeat-all'
+    if (mode === 'order') {
+      setShuffle(false)
+      setRepeatMode('off')
+    } else if (mode === 'shuffle') {
+      setShuffle(true)
+      setRepeatMode('off')
+    } else if (mode === 'repeat-one') {
+      setShuffle(false)
+      setRepeatMode('one')
+    } else if (mode === 'repeat-all') {
+      setShuffle(false)
+      setRepeatMode('all')
+    }
+    closeModeSheet()
+  }
+
+  const getModeIcon = () => {
+    // Always use a white icon for the small left-side listening-mode button
+    const iconColor = '#ffffff'
+    if (shuffle) return { name: 'shuffle', color: iconColor }
+    if (repeatMode && repeatMode !== 'off') return { name: 'repeat', color: iconColor }
+    return { name: 'list-outline', color: iconColor }
+  }
+
+  // animate mode button so it hides along with the floating play button as header collapses
+  const modeButtonAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(scrollY.value, [HEADER_SCROLL * 0.6, HEADER_SCROLL], [1, 0], Extrapolate.CLAMP)
+    const translateX = interpolate(scrollY.value, [0, HEADER_SCROLL], [0, -6], Extrapolate.CLAMP)
+    return { opacity, transform: [{ translateX }], zIndex: 14 }
+  })
+
+  // seam mode should remain hidden (we don't introduce a separate mode button in the seam)
+  const seamModeAnimatedStyle = useAnimatedStyle(() => ({ opacity: 0 }))
+
   if (loading) return <View style={[styles.container, { justifyContent: 'center' }]}><ActivityIndicator color={COLORS.primary} /></View>
 
   return (
@@ -319,24 +366,31 @@ export default function LikedSongs() {
             <AnimatedText style={[styles.headerTitle, titleAnimatedStyle]}>Liked Songs</AnimatedText>
           </View>
           <Reanimated.View style={[styles.playAllContainer, playButtonAnimatedStyle]} pointerEvents={undefined}>
-            <TouchableOpacity style={styles.playAll} onPress={playAll}>
-              {current && String(current._id) === String(songs[0]?._id) && playerIsPlaying ? (
-                <Ionicons name="pause" size={22} color={COLORS.black} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Reanimated.View style={modeButtonAnimatedStyle}>
+                <TouchableOpacity onPress={openModeSheet} style={styles.modeButton}>
+                  <Ionicons name={getModeIcon().name} size={26} color={getModeIcon().color} />
+                </TouchableOpacity>
+              </Reanimated.View>
+              <TouchableOpacity style={styles.seamPlayButton} onPress={playAll} activeOpacity={0.85}>
+              {playerIsPlaying ? (
+                <Ionicons name="pause" size={27} color={COLORS.black} />
               ) : (
                 <Ionicons name="play" size={22} color={COLORS.black} />
               )}
             </TouchableOpacity>
+            </View>
           </Reanimated.View>
 
           {/* search box - animated */}
           <Reanimated.View style={[styles.searchBoxWrap, searchBoxStyle]}>
             <View style={styles.searchInner}>
-              <Ionicons name="search" size={18} color={'rgba(255,255,255,0.7)'} style={styles.searchIcon} />
+              <Ionicons name="search" size={18} color={'rgba(198, 247, 255, 1)'} style={styles.searchIcon} />
               <TextInput
                 value={searchText}
                 onChangeText={setSearchText}
                 placeholder="Search liked songs, artists, albums"
-                placeholderTextColor={'rgba(255,255,255,0.7)'}
+                placeholderTextColor={'rgba(198, 247, 255, 1)'}
                 style={styles.searchInput}
                 underlineColorAndroid="transparent"
               />
@@ -364,20 +418,27 @@ export default function LikedSongs() {
           style={[styles.collapsedHeader, collapsedHeaderStyle]}
         >
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text numberOfLines={1} style={styles.collapsedTitle}>Liked Songs</Text>
         </AnimatedLinearGradient>
 
         {/* seam play button: appears centered at the header/list seam when collapsed */}
         <Reanimated.View style={[styles.seamPlayContainer, seamPlayStyle]} pointerEvents="box-none">
-          <TouchableOpacity style={styles.seamPlayButton} onPress={playAll} activeOpacity={0.85}>
-            {playerIsPlaying ? (
-              <Ionicons name="pause" size={22} color={COLORS.black} />
-            ) : (
-              <Ionicons name="play" size={22} color={COLORS.black} />
-            )}
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Reanimated.View style={seamModeAnimatedStyle}>
+              <TouchableOpacity onPress={openModeSheet} style={styles.modeButtonSeam}>
+                <Ionicons name={getModeIcon().name} size={22} color={getModeIcon().color} />
+              </TouchableOpacity>
+            </Reanimated.View>
+            <TouchableOpacity style={styles.seamPlayButton} onPress={playAll} activeOpacity={0.85}>
+              {playerIsPlaying ? (
+                <Ionicons name="pause" size={27} color={COLORS.black} />
+              ) : (
+                <Ionicons name="play" size={22} color={COLORS.black} />
+              )}
+            </TouchableOpacity>
+          </View>
         </Reanimated.View>
         <ContextMenu
           menuVisible={menuVisible}
@@ -389,6 +450,52 @@ export default function LikedSongs() {
           addToPlaylist={addToPlaylist}
           shareSong={shareSong}
         />
+
+        {/* Listening Mode bottom sheet */}
+        <Modal visible={modeSheetVisible} transparent animationType="slide" onRequestClose={closeModeSheet}>
+          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} onPress={closeModeSheet} />
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+            <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, paddingBottom: 36, borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: 300 }}>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 22, fontWeight: '900', marginBottom: 18, textAlign: 'center' }}>Listening Mode</Text>
+              <TouchableOpacity style={[styles.menuOption, { paddingVertical: 16 }]} onPress={() => applyMode('order')}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View marginLeft={9} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="list-outline" size={30} color={'#fff'} style={{ marginRight: 18 }} />
+                    <Text style={[styles.menuOptionText, { fontSize: 17, color: '#fff' }]}>Play in order</Text>
+                  </View>
+                  {( !shuffle && repeatMode === 'off' ) && <Ionicons name="checkmark" size={27} color={COLORS.primary} />}
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.menuOption, { paddingVertical: 16 }]} onPress={() => applyMode('shuffle')}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View marginLeft={9} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="shuffle" size={30} color={shuffle ? COLORS.primary : '#fff'} style={{ marginRight: 18 }} />
+                    <Text style={[styles.menuOptionText, { fontSize: 17, color: '#fff' }]}>Shuffle</Text>
+                  </View>
+                  {shuffle && <Ionicons name="checkmark" size={27} color={COLORS.primary} />}
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.menuOption, { paddingVertical: 16 }]} onPress={() => applyMode('repeat-one')}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View marginLeft={9} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="repeat" size={30} color={repeatMode === 'one' ? COLORS.primary : '#fff'} style={{ marginRight: 18 }} />
+                    <Text style={[styles.menuOptionText, { fontSize: 17 }]}>Repeat one</Text>
+                  </View>
+                  {repeatMode === 'one' && <Ionicons name="checkmark" size={27} color={COLORS.primary} />}
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.menuOption, { paddingVertical: 16 }]} onPress={() => applyMode('repeat-all')}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View marginLeft={9} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="repeat" size={30} color={repeatMode === 'all' ? COLORS.primary : '#fff'} style={{ marginRight: 18 }} />
+                    <Text style={[styles.menuOptionText, { fontSize: 17 }]}>Repeat all</Text>
+                  </View>
+                  {repeatMode === 'all' && <Ionicons name="checkmark" size={27} color={COLORS.primary} />}
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* dark bottom overlay to reduce brightness and emulate Spotify-style footer */}
         <View pointerEvents="none" style={styles.bottomDark} />
@@ -491,6 +598,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  playingText: {
+    color: COLORS.neonAqua,
+  },
   subtitle: {
     color: COLORS.textSecondary,
     fontSize: 13,
@@ -543,20 +653,22 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   searchInner: {
-    height: 44,
-    borderRadius: 22,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
-  },
+  height: 44,
+  borderRadius: 22,
+  paddingHorizontal: 12,
+  backgroundColor: 'rgba(255, 255, 255, 0.08)', // Slightly darker for better contrast
+  borderWidth: 1,
+  borderColor: 'rgba(255, 255, 255, 0.15)', // Softer border for a subtle effect
+  flexDirection: 'row',
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOpacity: 0.15, // Increased opacity for a more pronounced shadow
+  shadowOffset: { width: 0, height: 3 }, // Slightly deeper shadow for depth
+  shadowRadius: 6,
+  elevation: 3, // Enhanced elevation for Android
+  borderColor: 'rgba(5, 223, 197, 0.86)', // Subtle bottom border for depth
+},
+
   searchIcon: {
     marginRight: 8,
   },
@@ -600,14 +712,25 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.neonAqua,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: COLORS.primary,
+    shadowColor: COLORS.neonAqua,
     shadowOpacity: 0.98,
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 16,
     elevation: 18,
+  },
+  modeButton: {
+    // make transparent and remove circular filled background for a cleaner look
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modeButtonSeam: {
+    marginRight: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
  
   bottomDark: {

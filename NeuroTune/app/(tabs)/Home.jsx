@@ -1,571 +1,234 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import {
   View,
   Text,
-  StyleSheet,
-  Image,
   TouchableOpacity,
-  TextInput,
+  Image,
   FlatList,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Modal,
-  Switch,
   Dimensions,
-} from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
-import usePlayerStore from "../../store/playerStore";
-import { API_URL, API } from "../../constants/api";
-import COLORS from "../../constants/colors";
-import { useAuthStore } from "../../store/authStore";
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import Reanimated, { useSharedValue, useAnimatedScrollHandler } from "react-native-reanimated";
-import { Animated as RNAnimated, Share } from 'react-native';
-import { PanGestureHandler } from "react-native-gesture-handler";
-import styles from "../../assets/styles/songs.styles";
-import ContextMenu from "../../components/ContextMenu";
+  Animated,
+  Platform,
+  ActivityIndicator,
+} from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import COLORS from '../../constants/colors'
+import { useAuthStore } from '../../store/authStore'
+import usePlayerStore from '../../store/playerStore'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Ionicons } from '@expo/vector-icons'
 
+const { width: SCREEN_W } = Dimensions.get('window')
+const PADDING = 18
+const CARD_GAP = 12
+const CARD_W = Math.round((SCREEN_W - PADDING * 2 - CARD_GAP) / 2)
 
-const SONGS_BG = COLORS.background || "#000";
-const SONGS_CARD = COLORS.cardBackground || "#0f1724";
-const SONGS_BORDER = COLORS.border || "#15202b";
-const SONGS_TEXT = COLORS.textPrimary || "#E6F7F2";
-const SONGS_TEXT_LIGHT = COLORS.textSecondary || "#9AA6B2";
-const ACCENT = COLORS.primary || "#22c1a9";
+const RECENTS_KEY = 'recentHistory'
 
-const SCREEN_HEIGHT = Dimensions.get("window").height;
+const PillTab = ({ label, active, onPress }) => (
+  <TouchableOpacity onPress={onPress} style={{ marginRight: 10 }} activeOpacity={0.9}>
+    <View style={{
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 24,
+      borderWidth: active ? 0 : 0,
+      backgroundColor: active ? 'transparent' : 'rgba(255,255,255,0.03)'
+    }}>
+      {active ? (
+        <LinearGradient colors={[COLORS.primary, '#7b61ff']} style={{ borderRadius: 24, paddingHorizontal: 12, paddingVertical: 6 }} start={[0,0]} end={[1,1]}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>{label}</Text>
+        </LinearGradient>
+      ) : (
+        <Text style={{ color: COLORS.textPrimary }}>{label}</Text>
+      )}
+    </View>
+  </TouchableOpacity>
+)
 
-export default function Songs() {
-  const { token } = useAuthStore();
-  const currentUser = useAuthStore((s) => s.user);
+const FeatureCard = ({ item }) => (
+  <TouchableOpacity activeOpacity={0.9} style={{ width: 260, height: 140, borderRadius: 12, marginRight: 12, overflow: 'hidden' }}>
+    <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
+    <LinearGradient colors={['transparent','rgba(0,0,0,0.5)']} style={{ position: 'absolute', left:0,right:0,bottom:0,top:0 }} />
+    <View style={{ position: 'absolute', left: 12, bottom: 12 }}>
+      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>{item.title}</Text>
+      <Text style={{ color: 'rgba(255,255,255,0.85)' }}>{item.subtitle}</Text>
+    </View>
+  </TouchableOpacity>
+)
 
-  const [songs, setSongs] = useState([]);
-  const [likedSet, setLikedSet] = useState(new Set());
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-  const [pickedFile, setPickedFile] = useState(null);
-  const [pickedArtwork, setPickedArtwork] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [optionsForSong, setOptionsForSong] = useState(null);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const menuAnim = useRef(new RNAnimated.Value(0)).current;
-
-  const playerCurrent = usePlayerStore((s) => s.current);
-  const playerIsPlaying = usePlayerStore((s) => s.isPlaying);
-  const playTrack = usePlayerStore((s) => s.playTrack);
-  const stopPlayer = usePlayerStore((s) => s.stop);
-  const shuffleOn = usePlayerStore((s) => s.shuffle);
-  const repeatMode = usePlayerStore((s) => s.repeatMode);
-  const setShuffle = usePlayerStore((s) => s.setShuffle);
-  const setRepeatMode = usePlayerStore((s) => s.setRepeatMode);
-
-  // shared values retained for future gestures, but UI collapse will use measured React state
-  const translateY = useSharedValue(0);
-  const listTranslate = useSharedValue(0);
-  const uploadH = useSharedValue(220);
-  const uploadBtnH = useSharedValue(56);
-  const uploadContentH = useSharedValue(0);
-  const [uploadHeightPx, setUploadHeightPx] = useState(220);
-  const [uploadBtnHeightPx, setUploadBtnHeightPx] = useState(56);
-  // How many pixels to preserve visible at the top when collapsed
-  const COLLAPSE_SAFE_INSET = 48;
-  const maxTranslate = () => {
-    const diff = uploadH.value - uploadBtnH.value;
-    const raw = Number.isFinite(diff) ? diff : 200;
-    // Reduce by a safe inset so the upload card doesn't move completely off-screen
-    const allowed = raw - COLLAPSE_SAFE_INSET;
-    return Math.max(0, allowed);
-  };
-  const [measured, setMeasured] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [showPlayerSettings, setShowPlayerSettings] = useState(false);
-
-  const toggleCollapse = () => {
-    const max = maxTranslate();
-    if (!collapsed) {
-      translateY.value = -max;
-      listTranslate.value = max;
-      setCollapsed(true);
-    } else {
-      translateY.value = 0;
-      listTranslate.value = 0;
-      setCollapsed(false);
-    }
-  };
-
-  // track list scroll so we only intercept gestures when the list is at the top
-  const scrollY = useSharedValue(1);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (ev) => {
-      scrollY.value = ev.contentOffset.y;
-    },
-  });
-
-  // gesture handling removed for simplicity; collapse will be height-based so list remains stable
-
-  useEffect(() => {
-    fetchSongs();
-    fetchLikedIds();
-    return () => {};
-  }, []);
-
-  const fetchLikedIds = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(API('api/user/liked'), { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        if (res.status === 401) return;
-        return;
-      }
-      let json = null
-      try { json = await res.json(); } catch (e) { json = null }
-      const ids = (json && Array.isArray(json.songs)) ? json.songs.map((s) => String(s._id)) : [];
-      setLikedSet(new Set(ids));
-    } catch (e) {
-      console.warn('fetchLikedIds', e);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([fetchSongs(), fetchLikedIds()]);
-    } catch (e) {
-      console.warn('onRefresh', e);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    (async () => {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission required",
-          "Permission to access photos is required to select artwork"
-        );
-      }
-    })();
-  }, []);
-
-  const fetchSongs = async () => {
-    setLoading(true);
-    try {
-  const res = await fetch(API('api/songs'));
-  let json = null
-  try { json = await res.json(); } catch (e) { json = null }
-  setSongs((json && Array.isArray(json.songs)) ? json.songs : []);
-    } catch (e) {
-      console.warn("fetchSongs", e);
-      Alert.alert("Error", "Failed to load songs");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const pickFile = async () => {
-    try {
-      const pickerType = Platform.OS === "ios" ? "public.audio" : "audio/*";
-      const res = await DocumentPicker.getDocumentAsync({
-        type: pickerType,
-        copyToCacheDirectory: true,
-      });
-
-      if (res && Array.isArray(res.assets) && res.canceled === false) {
-        const asset = res.assets[0];
-        setPickedFile({
-          uri: asset.uri,
-          name: asset.name || asset.uri.split("/").pop(),
-          size: asset.size,
-          mimeType: asset.mimeType,
-          raw: res,
-        });
-      } else if (res && res.type === "success") {
-        setPickedFile({
-          uri: res.uri,
-          name: res.name || res.uri.split("/").pop(),
-          size: res.size,
-          mimeType: res.mimeType,
-          raw: res,
-        });
-      } else {
-        Alert.alert("Selection cancelled", "No file was selected");
-      }
-    } catch (e) {
-      console.warn("pickFile", e);
-    }
-  };
-
-  const pickArtwork = async () => {
-    try {
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-        allowsEditing: false,
-      });
-      if (!res || res.canceled) return;
-
-      let asset = Array.isArray(res.assets) ? res.assets[0] : res;
-      setPickedArtwork({
-        uri: asset.uri,
-        name: asset.fileName || asset.uri.split("/").pop(),
-        width: asset.width,
-        height: asset.height,
-        raw: res,
-      });
-    } catch (e) {
-      console.warn("pickArtwork", e);
-    }
-  };
-
-  const uploadToCloudinary = async (file) => {
-  const signRes = await fetch(API('api/songs/sign'), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ folder: "songs", resource_type: "raw" }),
-    });
-    if (!signRes.ok) throw new Error("Failed to get upload signature");
-    const signJson = await signRes.json();
-
-    const cloudUrl = `https://api.cloudinary.com/v1_1/${signJson.cloud_name}/raw/upload`;
-    const form = new FormData();
-    form.append("file", {
-      uri: file.uri,
-      name: file.name,
-      type: file.mimeType || "audio/mpeg",
-    });
-    form.append("api_key", signJson.api_key);
-    form.append("timestamp", String(signJson.timestamp));
-    form.append("signature", signJson.signature);
-    form.append("resource_type", "raw");
-    form.append("folder", "songs");
-
-    const uploadRes = await fetch(cloudUrl, { method: "POST", body: form });
-    const cloudJson = await uploadRes.json();
-    if (!uploadRes.ok)
-      throw new Error(cloudJson.error?.message || "Cloud upload failed");
-    return cloudJson;
-  };
-
-  const uploadArtworkToCloudinary = async (image) => {
-  const signRes = await fetch(API('api/songs/sign'), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ folder: "songs/artwork", resource_type: "image" }),
-    });
-    if (!signRes.ok) throw new Error("Failed to get upload signature");
-    const signJson = await signRes.json();
-
-    const cloudUrl = `https://api.cloudinary.com/v1_1/${signJson.cloud_name}/image/upload`;
-    const form = new FormData();
-    form.append("file", { uri: image.uri, name: image.name, type: "image/jpeg" });
-    form.append("api_key", signJson.api_key);
-    form.append("timestamp", String(signJson.timestamp));
-    form.append("signature", signJson.signature);
-    form.append("folder", "songs/artwork");
-
-    const uploadRes = await fetch(cloudUrl, { method: "POST", body: form });
-    const cloudJson = await uploadRes.json();
-    if (!uploadRes.ok)
-      throw new Error(cloudJson.error?.message || "Artwork upload failed");
-    return cloudJson;
-  };
-
-  const handleUpload = async () => {
-    if (!token) return Alert.alert("Not signed in");
-    if (!pickedFile) return Alert.alert("Select a file first");
-    if (!title.trim()) return Alert.alert("Title required");
-
-    setUploading(true);
-    try {
-      let artworkJson = null;
-      if (pickedArtwork) {
-        artworkJson = await uploadArtworkToCloudinary(pickedArtwork);
-      }
-
-      const cloudJson = await uploadToCloudinary(pickedFile);
-
-  const createRes = await fetch(API('api/songs'), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: title.trim(),
-          artist: artist.trim(),
-          url: cloudJson.secure_url,
-          publicId: cloudJson.public_id,
-          mimeType: cloudJson.resource_type || pickedFile.mimeType,
-          size: cloudJson.bytes || pickedFile.size || 0,
-          artworkUrl: artworkJson ? artworkJson.secure_url : undefined,
-          artworkPublicId: artworkJson ? artworkJson.public_id : undefined,
-        }),
-      });
-      const createJson = await createRes.json();
-      if (!createRes.ok) throw new Error(createJson.error || "Failed to save song");
-
-      setSongs((s) => [createJson.song, ...s]);
-      setTitle("");
-      setArtist("");
-      setPickedFile(null);
-      setPickedArtwork(null);
-      Alert.alert("Success", "Song uploaded");
-    } catch (e) {
-      console.error("upload error", e);
-      Alert.alert("Upload failed", e.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // When collapsed: first press should expand the upload card.
-  // When expanded: pressing again performs the actual upload.
-  const handleUploadPress = async () => {
-    if (collapsed) {
-      // expand first
-      setCollapsed(false);
-      // give layout a tick to measure if needed
-      return;
-    }
-    // already expanded - proceed with upload
-    await handleUpload();
-  };
-
-  const playSong = async (song, index) => {
-    try {
-      await playTrack(song, songs, index);
-    } catch (e) {
-      console.warn("playSong", e);
-      Alert.alert("Playback error", "Could not play this song");
-    }
-  };
-
-  const stopPlayback = async () => {
-    try {
-      await stopPlayer();
-    } catch (e) {
-      console.warn("stopPlayback", e);
-    }
-  };
-
-  const showSongOptions = (item) => {
-    setOptionsForSong(item);
-    setMenuVisible(true);
-    RNAnimated.timing(menuAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
-  };
-
-  const confirmDeleteSong = (item) => {
-    Alert.alert("Are you sure?", "Are you sure you want to delete the song?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const res = await fetch(API(`api/songs/${item._id}`), {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error("Delete failed");
-            setSongs((s) => s.filter((x) => x._id !== item._id));
-            setOptionsForSong(null);
-          } catch (e) {
-            console.warn("delete song failed", e);
-            Alert.alert("Delete failed", e.message);
-          }
-        },
-      },
-    ]);
-  };
-
-  const addToLiked = async (song) => {
-    if (!token) return Alert.alert('Sign in required');
-    try {
-      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      let json = null;
-      try { json = await res.json(); } catch (e) {
-        const txt = await res.text();
-        try { json = JSON.parse(txt); } catch (e2) { json = { error: txt }; }
-      }
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed to like');
-      if (json.liked) {
-        setLikedSet((s) => new Set([...Array.from(s), String(song._id)]));
-        // No success alert on add - UI updates visually
-      }
-    } catch (e) {
-      console.warn('like failed', e);
-      Alert.alert('Error', `Could not add to liked\n${e.message || ''}`);
-    }
-  };
-
-  const removeFromLikedViaModal = async (song) => {
-    if (!token) return Alert.alert('Sign in required');
-    try {
-      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      let json = null;
-      try { json = await res.json(); } catch (e) {
-        const txt = await res.text();
-        try { json = JSON.parse(txt); } catch (e2) { json = { error: txt }; }
-      }
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed to toggle like');
-      if (json.liked === false) {
-        setLikedSet((s) => {
-          const next = new Set(Array.from(s).filter((id) => id !== String(song._id)));
-          return next;
-        });
-        // keep menu visible until closed by context menu
-        setMenuVisible(false);
-        setTimeout(() => setOptionsForSong(null), 220);
-        Alert.alert('Removed', 'Song removed from Liked');
-      }
-    } catch (e) {
-      console.warn('remove liked', e);
-      Alert.alert('Error', 'Could not remove liked');
-    }
-  };
-
-  const playNext = (song) => {
-    // naive play next: insert song after current index and start when current finishes
-    // for now, just start playing immediately
-    playSong(song, songs.findIndex((s) => String(s._id) === String(song._id)));
-    setMenuVisible(false);
-    setTimeout(() => setOptionsForSong(null), 220);
-  };
-
-  const addToPlaylist = (song) => {
-    setMenuVisible(false);
-    setTimeout(() => setOptionsForSong(null), 220);
-    Alert.alert('Add to Playlist', 'This feature is coming soon');
-  };
-
-  const shareSong = async (song) => {
-    try {
-      await Share.share({ message: `${song.title} — ${song.artist || ''}\n${song.url || ''}` });
-    } catch (e) {
-      console.warn('share failed', e);
-    }
-    setMenuVisible(false);
-    setTimeout(() => setOptionsForSong(null), 220);
-  };
-
-  const repeatSongOption = async (item) => {
-    try {
-      setRepeatMode("one");
-      await playTrack(
-        item,
-        songs,
-        songs.findIndex((s) => String(s._id) === String(item._id))
-      );
-      setOptionsForSong(null);
-      Alert.alert("Repeat enabled", "This song will repeat");
-    } catch (e) {
-      console.warn("repeat song failed", e);
-      Alert.alert("Failed", "Could not set repeat");
-    }
-  };
-
-  const renderItem = ({ item, index }) => {
-    const isCurrent = playerCurrent && String(playerCurrent._id) === String(item._id);
-    const playing = isCurrent && playerIsPlaying;
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.8}
-        onPress={() => {
-          if (playing) stopPlayback();
-          else playSong(item, index);
-        }}
-      >
-        {item.artworkUrl ? (
-          <Image source={{ uri: item.artworkUrl }} style={styles.cardArt} />
-        ) : (
-          <View style={styles.cardArtPlaceholder} />
-        )}
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.songTitle}>{item.title}</Text>
-          <Text style={styles.songArtist}>{item.artist || item.user?.username || ""}</Text>
+const GridCard = React.memo(({ item, onPress }) => (
+  <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(item)} style={{ width: CARD_W, marginBottom: 14 }}>
+    <View style={{ width: CARD_W, height: CARD_W, borderRadius: 12, overflow: 'hidden' }}>
+      <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
+      <LinearGradient colors={['transparent','rgba(0,0,0,0.48)']} style={{ position: 'absolute', left:0,right:0,bottom:0,top:0 }} />
+      {item.special && (
+        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.35)', padding: 6, borderRadius: 8 }}>
+          <Ionicons name="heart" size={16} color={COLORS.primary} />
         </View>
-        {/* Like / Add to Liked: show a small plus if not liked, otherwise a small tick */}
-        {currentUser && (
-          likedSet.has(String(item._id)) ? (
-            <View style={{ width: 22, height: 22, borderRadius: 11, marginLeft: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(34,193,169,0.12)', overflow: 'hidden' }}>
-              <Ionicons name="checkmark" size={12} color={ACCENT} />
-            </View>
-          ) : (
-            <TouchableOpacity onPress={() => addToLiked(item)} style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginLeft: 8, overflow: 'hidden' }}>
-              <Ionicons name="add" size={14} color={ACCENT} />
-            </TouchableOpacity>
-          )
-        )}
-        {currentUser && item.user && String(item.user._id) === String(currentUser._id) && (
-          <TouchableOpacity style={styles.optionsBtn} onPress={() => showSongOptions(item)}>
-            <Text style={styles.optionsText}>⋮</Text>
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    );
-  };
-  // compute collapsed style so header and upload button remain visible when collapsed
-  const minCollapsed = Math.max(uploadBtnHeightPx + 48, 140); // ensure visible area
-  const collapsedStyle = collapsed ? { height: minCollapsed, overflow: 'hidden' } : null;
+      )}
+    </View>
+    <Text numberOfLines={1} style={{ color: COLORS.textPrimary, fontWeight: '700', marginTop: 8 }}>{item.title}</Text>
+    <Text numberOfLines={1} style={{ color: COLORS.textSecondary, marginTop: 4 }}>{item.subtitle}</Text>
+  </TouchableOpacity>
+))
 
-  if (loading) {
-    return (
-      <LinearGradient colors={[SONGS_BG, SONGS_CARD]} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color={ACCENT} />
-      </LinearGradient>
-    );
-  }
+export default function Home() {
+  const authUser = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.user)
+  const playTrack = usePlayerStore((s) => s.playTrack)
+  const [tab, setTab] = useState('All')
+
+  const [featured, setFeatured] = useState([])
+  const [gridItems, setGridItems] = useState([])
+  const [recents, setRecents] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const anim = useRef(new Animated.Value(0)).current
+
+  // load initial content (stubbed or from API)
+  useEffect(() => {
+    // load featured (could be from API) and public playlists with images
+    try {
+      if (typeof setFeatured === 'function') {
+        setFeatured([
+          { id: 'f1', title: "New Music Friday", subtitle: 'Latest releases', image: 'https://picsum.photos/seed/friday/400/200' },
+          { id: 'f2', title: 'Release Radar', subtitle: 'Fresh picks', image: 'https://picsum.photos/seed/radar/400/200' },
+        ])
+      } else {
+        console.warn('[Home] setFeatured is not a function:', typeof setFeatured)
+      }
+    } catch (e) {
+      console.warn('[Home] failed to set featured', e)
+    }
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(RECENTS_KEY)
+        const parsed = raw ? JSON.parse(raw) : []
+        setRecents(Array.isArray(parsed) ? parsed.slice(0,8) : [])
+
+        // fetch public playlists and filter those that have an image field
+        try {
+          const res = await fetch(API('api/playlists'))
+          const json = await res.json()
+          const list = (json && Array.isArray(json.playlists)) ? json.playlists : (Array.isArray(json) ? json : [])
+          const withImages = list.filter(p => p.imageUrl || p.artworkUrl || (p.images && p.images.length > 0) || (p.artwork && (p.artwork.url || p.artwork.secure_url)))
+          // map into grid item shape
+          const mapped = withImages.map(p => ({ id: p._id, title: p.title, subtitle: p.user?.username || '', image: p.imageUrl || p.artworkUrl || (p.images && (p.images[0]?.secure_url || p.images[0]?.url)) || (typeof p.artwork === 'string' ? p.artwork : (p.artwork?.url || p.artwork?.secure_url)), special: false }))
+          setGridItems(mapped)
+        } catch (err) {
+          console.warn('[Home] failed to load playlists', err)
+        }
+      } catch (e) { setRecents([]) }
+      setLoading(false)
+    })()
+  }, [])
+
+  // animate background gradient subtly
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 6000, useNativeDriver: false }),
+        Animated.timing(anim, { toValue: 0, duration: 6000, useNativeDriver: false }),
+      ])
+    ).start()
+  }, [])
+
+  const saveRecent = useCallback(async (item) => {
+    try {
+      const raw = await AsyncStorage.getItem(RECENTS_KEY)
+      const parsed = raw ? JSON.parse(raw) : []
+      // dedupe by id or url
+      const key = item.id || item._id || item.url || item.title
+      const filtered = (parsed || []).filter((x) => String(x.id || x._id || x.url || x.title) !== String(key))
+      filtered.unshift({ id: key, ...item })
+      const next = filtered.slice(0,8)
+      await AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(next))
+      setRecents(next)
+    } catch (e) { /* ignore */ }
+  }, [])
+
+  const onPressCard = useCallback(async (item) => {
+    // play or navigate - here we'll play a mock track if available
+    try {
+      if (item.track) {
+        await playTrack(item.track)
+      }
+      // record recent visit
+      saveRecent(item)
+    } catch (e) {}
+  }, [playTrack, saveRecent])
+
+  const renderHeader = useMemo(() => (
+    <View style={{ paddingHorizontal: PADDING, paddingTop: 18, paddingBottom: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <PillTab label="All" active={tab==='All'} onPress={() => setTab('All')} />
+        <PillTab label="Music" active={tab==='Music'} onPress={() => setTab('Music')} />
+        <PillTab label="Podcasts" active={tab==='Podcasts'} onPress={() => setTab('Podcasts')} />
+      </View>
+
+      <View style={{ height: 160 }}>
+        <FlatList horizontal data={featured} keyExtractor={(i)=>i.id} showsHorizontalScrollIndicator={false} renderItem={({item}) => <FeatureCard item={item} />} />
+      </View>
+
+      <View style={{ height: 18 }} />
+    </View>
+  ), [tab, featured])
+
+  const showRecents = recents && recents.length > 0
 
   return (
-    <LinearGradient colors={[SONGS_BG, SONGS_CARD]} style={{ flex: 1 }}>
-      <Reanimated.View style={[{ flex: 1 }]}>
-        <Reanimated.FlatList
-          data={songs}
-          keyExtractor={(i) => i._id}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 12, paddingTop: 20 }}
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-        />
-      </Reanimated.View>
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      {/* animated gradient background */}
+      <Animated.View style={{ position: 'absolute', left:0,right:0,top:0,bottom:0, opacity: anim.interpolate({ inputRange:[0,1], outputRange:[0.5,1] }) }} pointerEvents="none">
+        <LinearGradient colors={[COLORS.background, COLORS.primary, '#0b0710']} style={{ flex:1 }} start={[0,0]} end={[1,1]} />
+      </Animated.View>
 
-      {/* Shared ContextMenu for song options */}
-      <ContextMenu
-        menuVisible={menuVisible}
-        closeMenu={() => {
-          RNAnimated.timing(menuAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
-            setMenuVisible(false);
-            setOptionsForSong(null);
-          });
+      <FlatList
+        data={gridItems}
+        keyExtractor={(i)=>i.id}
+        ListHeaderComponent={
+          <>
+            {renderHeader}
+            {showRecents && (
+              <View style={{ paddingHorizontal: PADDING, marginBottom: 12 }}>
+                <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Recents</Text>
+                <FlatList horizontal data={recents} keyExtractor={(i)=>i.id} showsHorizontalScrollIndicator={false} renderItem={({item}) => (
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => onPressCard(item)} style={{ marginRight: 12 }}>
+                    <View style={{ width: 120, height: 120, borderRadius: 10, overflow: 'hidden' }}>
+                      <Image source={{ uri: item.image || `https://picsum.photos/seed/${item.id}/300/300` }} style={{ width: '100%', height: '100%' }} />
+                    </View>
+                    <Text numberOfLines={1} style={{ color: COLORS.textPrimary, width: 120 }}>{item.title}</Text>
+                  </TouchableOpacity>
+                )} />
+              </View>
+            )}
+            <View style={{ paddingHorizontal: PADDING, marginTop: 8 }}>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Friday drops picked for you</Text>
+            </View>
+          </>
+        }
+        renderItem={({ item, index }) => {
+          // render in a 2-column grid via column wrapper
+          if (index % 2 === 0) {
+            const left = item
+            const right = gridItems[index+1]
+            return (
+              <View style={{ flexDirection: 'row', paddingHorizontal: PADDING, justifyContent: 'space-between' }}>
+                <GridCard item={left} onPress={onPressCard} />
+                {right ? <GridCard item={right} onPress={onPressCard} /> : <View style={{ width: CARD_W }} />}
+              </View>
+            )
+          }
+          return null
         }}
-        menuAnim={menuAnim}
-        menuTarget={optionsForSong}
-        playNext={playNext}
-        removeFromLiked={(s) => removeFromLikedViaModal(s)}
-        addToPlaylist={addToPlaylist}
-        shareSong={shareSong}
+        ListFooterComponent={<View style={{ height: 120 }} />}
+        showsVerticalScrollIndicator={false}
       />
-    </LinearGradient>
-  );
+
+      {/* bottom fade so player blends */}
+      <LinearGradient colors={['transparent', COLORS.background]} style={{ position: 'absolute', left:0,right:0,bottom:0,height:120 }} />
+    </View>
+  )
 }
 
 // styles are loaded from assets/styles/songs.styles.js
