@@ -27,7 +27,9 @@ export const createPlaylist = asyncHandler(async (req, res) => {
     songs: validSongs,
     ...(posterUrl ? { imageUrl: posterUrl } : {}),
   });
-  res.status(201).json({ playlist });
+  // populate user and songs for immediate client consumption
+  const populated = await Playlist.findById(playlist._id).populate('user', 'username profileImage').populate('songs');
+  res.status(201).json({ playlist: populated });
 });
 
 // Get all playlists (publicly readable)

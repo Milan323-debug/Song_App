@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from '@react-navigation/native';
 import { API_URL, API } from "../../constants/api";
 import COLORS from "../../constants/colors";
 import styles from "../../assets/styles/playlists.styles";
@@ -19,6 +20,13 @@ export default function Playlists() {
   useEffect(() => {
     fetchPlaylists();
   }, []);
+
+  // Refetch when screen is focused (so newly created playlists appear)
+  useFocusEffect(
+    useCallback(() => {
+      fetchPlaylists();
+    }, [token])
+  );
 
   const handleDeletePlaylist = async () => {
     if (!selectedPlaylist || !token) return;
@@ -50,7 +58,7 @@ export default function Playlists() {
     setMenuVisible(true);
   };
 
-  const fetchPlaylists = async () => {
+  const fetchPlaylists = useCallback(async () => {
     try {
       // If already refreshing (user pulled) don't flip the full-page loading indicator
       if (!refreshing) setLoading(true);
@@ -66,7 +74,7 @@ export default function Playlists() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [token, refreshing]);
 
   const onRefresh = async () => {
     try {
