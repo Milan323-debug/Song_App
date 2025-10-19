@@ -360,7 +360,7 @@ export default function LikedSongs() {
       <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
         {/* header overlay - positioned absolute so list scrolls under it */}
         <Reanimated.View style={[styles.header, headerStyle]} >
-          <AnimatedImage source={{ uri: songs[0]?.artworkUrl || songs[0]?.imageUrl }} style={[styles.headerImage, headerImageStyle]} />
+          <AnimatedImage source={require('../../assets/images/heart.png')} style={[styles.headerImage, headerImageStyle]} />
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerSubtitle}>Your favorites in one place</Text>
             <AnimatedText style={[styles.headerTitle, titleAnimatedStyle]}>Liked Songs</AnimatedText>
@@ -544,8 +544,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
+    color: "#09ffffff",
+    fontSize: 15,
   },
   headerTitle: {
     color: COLORS.textPrimary,

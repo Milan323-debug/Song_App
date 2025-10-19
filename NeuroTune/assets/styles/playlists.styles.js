@@ -8,65 +8,246 @@ export default StyleSheet.create({
   },
   card: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    alignItems: 'center'
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.02)'
   },
   cardLeft: {
-    width: 64,
-    height: 64,
+    width: 84,
+    height: 84,
   },
   artwork: {
-    width: 64,
-    height: 64,
-    borderRadius: 8,
+    width: 84,
+    height: 84,
+    borderRadius: 10,
   },
   cardRight: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 16,
   },
   title: {
     color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: '600'
+    fontSize: 18,
+    fontWeight: '700'
   },
   subtitle: {
     color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 4
+    fontSize: 13,
+    marginTop: 6
   },
   owner: {
     color: COLORS.placeholderText,
-    fontSize: 11,
-    marginTop: 6
+    fontSize: 12,
+    marginTop: 8
   },
   header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.03)'
-  },
-  songRow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    // increase paddingTop so the search bar can sit above the image/title without overlap
+    paddingTop: 72,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.02)'
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
-  songArtwork: {
-    width: 56,
-    height: 56,
-    borderRadius: 6
+  headerImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 6,
+    marginRight: 12,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: COLORS.primary + '33',
   },
-  songTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: '600'
+  headerTextWrap: {
+    flex: 1,
   },
-  songSubtitle: {
+  headerSubtitle: {
     color: COLORS.textSecondary,
     fontSize: 12,
-    marginTop: 4
-  }
+  },
+  headerTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  playAll: {
+    // moved absolute positioning to wrapper so this is only visual button styling
+    backgroundColor: COLORS.primary,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.9,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  playAllContainer: {
+    position: 'absolute',
+    right: 18,
+    zIndex: 12,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  playingArtwork: {
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  itemText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  playingText: {
+    color: COLORS.neonAqua,
+  },
+  duration: {
+    color: COLORS.textSecondary,
+    marginLeft: 8,
+    width: 48,
+    textAlign: 'right',
+  },
+  duration: {
+    color: COLORS.textSecondary,
+    marginLeft: 8,
+    width: 48,
+    textAlign: 'right',
+  },
+  menuButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  searchBoxWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    // top is controlled by the animated style `searchBoxStyle` so the box
+    // remains visually anchored inside the header and moves with it.
+  },
+  searchInput: {
+    height: 44,
+    flex: 1,
+    paddingHorizontal: 10,
+    color: COLORS.textPrimary,
+  },
+  searchInner: {
+    height: 44,
+    borderRadius: 22,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  collapsedHeader: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 56,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardBackground,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 8,
+    top: 12,
+    padding: 8,
+  },
+  collapsedTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  libraryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)'
+  },
+  avatarImg: { width: 40, height: 40 },
+  titleLarge: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '800' },
+  pillRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8 },
+  pill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: 'transparent', marginRight: 8 },
+  pillActive: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  pillText: { color: COLORS.textSecondary },
+  pillTextActive: { color: COLORS.textPrimary, fontWeight: '700' },
+  recentsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
+  recentsTitle: { color: COLORS.textPrimary, fontWeight: '700' },
+  seamPlayContainer: {
+    position: 'absolute',
+    right: 20,
+    alignItems: 'center',
+  },
+  seamPlayButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.neonAqua,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.neonAqua,
+    shadowOpacity: 0.98,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 18,
+  },
+  modeButton: {
+    // small square button with subtle background
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)'
+  },
+  modeButtonSeam: {
+    marginRight: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Animated, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const AddCircleButton = ({ isAdded = false, onPress, size = 44 }) => {
+const AddCircleButton = ({ isAdded = false, onPress, size = 36 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {

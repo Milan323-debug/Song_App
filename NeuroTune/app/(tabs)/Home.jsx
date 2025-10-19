@@ -16,6 +16,8 @@ import { useAuthStore } from '../../store/authStore'
 import usePlayerStore from '../../store/playerStore'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
+import { API } from '../../constants/api'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 const PADDING = 18
@@ -44,8 +46,8 @@ const PillTab = ({ label, active, onPress }) => (
   </TouchableOpacity>
 )
 
-const FeatureCard = ({ item }) => (
-  <TouchableOpacity activeOpacity={0.9} style={{ width: 260, height: 140, borderRadius: 12, marginRight: 12, overflow: 'hidden' }}>
+const FeatureCard = ({ item, onPress }) => (
+  <TouchableOpacity activeOpacity={0.9} onPress={() => onPress && onPress(item)} style={{ width: 260, height: 140, borderRadius: 12, marginRight: 12, overflow: 'hidden' }}>
     <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
     <LinearGradient colors={['transparent','rgba(0,0,0,0.5)']} style={{ position: 'absolute', left:0,right:0,bottom:0,top:0 }} />
     <View style={{ position: 'absolute', left: 12, bottom: 12 }}>
@@ -75,6 +77,7 @@ export default function Home() {
   const authUser = useAuthStore((s) => s.user)
   const setUser = useAuthStore((s) => s.user)
   const playTrack = usePlayerStore((s) => s.playTrack)
+  const router = useRouter()
   const [tab, setTab] = useState('All')
 
   const [featured, setFeatured] = useState([])
@@ -86,38 +89,71 @@ export default function Home() {
 
   // load initial content (stubbed or from API)
   useEffect(() => {
-    // load featured (could be from API) and public playlists with images
-    try {
-      if (typeof setFeatured === 'function') {
+    // fetch public playlists created by all users and use those with artwork for the grid
+    (async () => {
+      try {
+        const res = await fetch(API('api/playlists'))
+        const json = await res.json()
+        const list = Array.isArray(json.playlists) ? json.playlists : (Array.isArray(json) ? json : [])
+
+        // Helper to pick an image from playlist or its first song
+        const pickImage = (pl) => {
+          if (!pl) return null
+          if (pl.imageUrl) return pl.imageUrl
+          if (pl.artworkUrl) return pl.artworkUrl
+          if (pl.image && (pl.image.secure_url || pl.image.url)) return pl.image.secure_url || pl.image.url
+          if (pl.artwork && (pl.artwork.secure_url || pl.artwork.url)) return pl.artwork.secure_url || pl.artwork.url
+          if (Array.isArray(pl.images) && pl.images.length > 0) return pl.images[0].secure_url || pl.images[0].url
+          // fallback to first song artwork
+          if (Array.isArray(pl.songs) && pl.songs.length > 0) {
+            const s = pl.songs[0]
+            if (s) return s.artworkUrl || (s.artwork && (s.artwork.secure_url || s.artwork.url)) || null
+          }
+          return null
+        }
+
+        const withImages = list
+          .map((pl) => ({
+            source: pl,
+            image: pickImage(pl)
+          }))
+          .filter(x => x.image)
+
+        // map to grid item shape
+        const grid = withImages.map(({ source, image }, idx) => ({
+          id: source._id || source.id || `p${idx}`,
+          title: source.title || source.name || 'Untitled',
+          subtitle: source.user?.username || source.user?.name || 'Unknown',
+          image,
+          special: !!source.isFeatured || false,
+          raw: source
+        }))
+
+        // choose first two as featured if available, otherwise fallback to small placeholders
+        const featuredItems = grid.slice(0, 2).map(g => ({ id: `f_${g.id}`, title: g.title, subtitle: g.subtitle, image: g.image }))
+
+        setFeatured(featuredItems.length ? featuredItems : [
+          { id: 'f1', title: "New Music Friday", subtitle: 'Latest releases', image: 'https://picsum.photos/seed/friday/400/200' },
+          { id: 'f2', title: 'Release Radar', subtitle: 'Fresh picks', image: 'https://picsum.photos/seed/radar/400/200' },
+        ])
+
+        setGridItems(grid)
+      } catch (err) {
+        console.warn('[Home] failed to fetch playlists', err)
+        // fallback to placeholder content
         setFeatured([
           { id: 'f1', title: "New Music Friday", subtitle: 'Latest releases', image: 'https://picsum.photos/seed/friday/400/200' },
           { id: 'f2', title: 'Release Radar', subtitle: 'Fresh picks', image: 'https://picsum.photos/seed/radar/400/200' },
         ])
-      } else {
-        console.warn('[Home] setFeatured is not a function:', typeof setFeatured)
+        const items = []
+        for (let i=0;i<12;i++) items.push({ id: 'g'+i, title: `Playlist ${i+1}`, subtitle: `Curator ${i+1}`, image: `https://picsum.photos/seed/album${i}/300/300`, special: i===0 })
+        setGridItems(items)
       }
-    } catch (e) {
-      console.warn('[Home] failed to set featured', e)
-    }
 
-    (async () => {
       try {
         const raw = await AsyncStorage.getItem(RECENTS_KEY)
         const parsed = raw ? JSON.parse(raw) : []
         setRecents(Array.isArray(parsed) ? parsed.slice(0,8) : [])
-
-        // fetch public playlists and filter those that have an image field
-        try {
-          const res = await fetch(API('api/playlists'))
-          const json = await res.json()
-          const list = (json && Array.isArray(json.playlists)) ? json.playlists : (Array.isArray(json) ? json : [])
-          const withImages = list.filter(p => p.imageUrl || p.artworkUrl || (p.images && p.images.length > 0) || (p.artwork && (p.artwork.url || p.artwork.secure_url)))
-          // map into grid item shape
-          const mapped = withImages.map(p => ({ id: p._id, title: p.title, subtitle: p.user?.username || '', image: p.imageUrl || p.artworkUrl || (p.images && (p.images[0]?.secure_url || p.images[0]?.url)) || (typeof p.artwork === 'string' ? p.artwork : (p.artwork?.url || p.artwork?.secure_url)), special: false }))
-          setGridItems(mapped)
-        } catch (err) {
-          console.warn('[Home] failed to load playlists', err)
-        }
       } catch (e) { setRecents([]) }
       setLoading(false)
     })()
@@ -150,6 +186,15 @@ export default function Home() {
   const onPressCard = useCallback(async (item) => {
     // play or navigate - here we'll play a mock track if available
     try {
+      // if this item represents a playlist from the grid/featured mapping, navigate to playlist detail
+      const playlistId = item?.raw?._id || item?.id || item?._id
+      if (playlistId) {
+        // record recent visit
+        saveRecent(item)
+        router.push(`/Playlists/${playlistId}`)
+        return
+      }
+
       if (item.track) {
         await playTrack(item.track)
       }

@@ -1,106 +1,381 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { API_URL, API } from "../../constants/api";
-import COLORS from "../../constants/colors";
-import styles from "../../assets/styles/playlists.styles";
-import usePlayerStore from "../../store/playerStore";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  View,
+  Text,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  Share,
+  RefreshControl,
+  TextInput,
+  Animated,
+} from 'react-native'
+import COLORS from '../../constants/colors'
+import { API_URL, API } from '../../constants/api'
+import { Ionicons } from '@expo/vector-icons'
+import { useNavigation } from '@react-navigation/native'
+import { useLocalSearchParams } from 'expo-router'
+import usePlayerStore from '../../store/playerStore'
+import ContextMenu from '../../components/ContextMenu'
+import GradientBackground from '../../components/GradientBackground'
+import PlaybackModeButton from '../../components/PlaybackModeButton'
+import { useAuthStore } from '../../store/authStore'
+import Reanimated, { useSharedValue, useAnimatedStyle, useAnimatedScrollHandler, interpolate, Extrapolate } from 'react-native-reanimated'
+import { LinearGradient } from 'expo-linear-gradient'
+import styles from '../../assets/styles/playlists.styles'
+import AddCircleButton from '../../components/AddCircleButton'
+
+const AnimatedImage = Reanimated.createAnimatedComponent(Image)
+const AnimatedFlatList = Reanimated.createAnimatedComponent(FlatList)
+const AnimatedText = Reanimated.createAnimatedComponent(Text)
+const AnimatedLinearGradient = Reanimated.createAnimatedComponent(LinearGradient)
 
 export default function PlaylistDetail() {
-  const { id } = useLocalSearchParams();
-  const [playlist, setPlaylist] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const router = useRouter();
-  const playTrack = usePlayerStore((state) => state.playTrack);
+  const { id } = useLocalSearchParams()
+  const [playlist, setPlaylist] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [menuVisible, setMenuVisible] = useState(false)
+  const [menuTarget, setMenuTarget] = useState(null)
+  const [menuAnim] = useState(new Animated.Value(0))
+  const [refreshing, setRefreshing] = useState(false)
+  const scrollYRef = useRef(null)
+  const scrollY = useSharedValue(0)
+  const [searchText, setSearchText] = useState('')
+  const [activeTab, setActiveTab] = useState('Songs')
+  const { token } = useAuthStore()
+  const playTrack = usePlayerStore((s) => s.playTrack)
+  const current = usePlayerStore((s) => s.current)
+  const playerIsPlaying = usePlayerStore((s) => s.isPlaying)
+  const pause = usePlayerStore((s) => s.pause)
+  const resume = usePlayerStore((s) => s.resume)
+  const navigation = useNavigation()
+  const [likedSet, setLikedSet] = useState(new Set())
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const fetchPlaylist = async () => {
-      if (!id) return;
-      try {
-        setError(null);
-        setLoading(true);
-  const res = await fetch(API(`api/playlists/${id}`));
-        const data = await res.json();
-        
-        if (!isMounted) return;
-        
-        if (data.error) {
-          setError(data.error);
-          return;
-        }
-        
-        if (!data.playlist) {
-          setError('Playlist not found');
-          return;
-        }
+    fetchPlaylist()
+  }, [id])
 
-        setPlaylist({
-          ...data.playlist,
-          songs: Array.isArray(data.playlist.songs) ? data.playlist.songs : []
-        });
-      } catch (error) {
-        if (!isMounted) return;
-        console.error("fetchPlaylist error:", error);
-        setError('Failed to load playlist');
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchPlaylist();
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
-
-  const handlePlaySong = async (song, index) => {
-    if (!song || !playlist?.songs) return;
+  const onRefresh = async () => {
     try {
-      await playTrack(song, playlist.songs, index);
-    } catch (error) {
-      console.error('Failed to play song:', error);
+      setRefreshing(true)
+      await fetchPlaylist()
+    } catch (e) {
+      console.warn('refresh playlist', e)
+    } finally {
+      setRefreshing(false)
     }
-  };
-
-  if (loading || !playlist) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
   }
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{playlist.title}</Text>
-        <Text style={styles.subtitle}>{playlist.description}</Text>
-        <Text style={styles.owner}>By {playlist.user?.username || 'Unknown'}</Text>
-      </View>
+  async function fetchPlaylist() {
+    setLoading(true)
+    try {
+      const res = await fetch(API(`api/playlists/${id}`))
+      const json = await res.json()
+      if (json.error) {
+        setPlaylist(null)
+        return
+      }
+      const pl = json.playlist || json
+      const songs = Array.isArray(pl.songs) ? pl.songs : []
+      setPlaylist({ ...pl, songs })
 
-      <FlatList
-        data={playlist.songs || []}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity style={styles.songRow} onPress={() => handlePlaySong(item, index)}>
-            {item.artworkUrl ? (
-              <Image source={{ uri: item.artworkUrl }} style={styles.songArtwork} />
-            ) : (
-              <View style={[styles.songArtwork, { backgroundColor: COLORS.cardBackground }]} />
-            )}
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.songTitle}>{item.title}</Text>
-              <Text style={styles.songSubtitle}>{item.artist}</Text>
+      // fetch liked songs for current user so we can mark which songs are liked
+      try {
+        if (token) {
+          const lr = await fetch(API('api/user/liked'), { headers: { Authorization: `Bearer ${token}` } })
+          if (lr.ok) {
+            const lj = await lr.json()
+            const list = Array.isArray(lj.songs) ? lj.songs : (Array.isArray(lj) ? lj : [])
+            const set = new Set(list.map(s => String(s._id || s.id)))
+            setLikedSet(set)
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    } catch (e) {
+      console.error('fetchPlaylist', e)
+      setPlaylist(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onPlay = useCallback(async (track) => {
+    try {
+      await playTrack(track, playlist.songs, playlist.songs.findIndex((s) => String(s._id) === String(track._id)))
+    } catch (e) {
+      console.warn('play error', e)
+    }
+  }, [playTrack, playlist])
+
+  const openMenu = (song) => {
+    setMenuTarget(song)
+    setMenuVisible(true)
+    Animated.timing(menuAnim, { toValue: 1, duration: 240, useNativeDriver: true }).start()
+  }
+
+  const closeMenu = () => {
+    Animated.timing(menuAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => {
+      setMenuVisible(false)
+      setMenuTarget(null)
+    })
+  }
+
+  const removeFromLiked = async (song) => {
+    try {
+      if (!token) return Alert.alert('Not signed in')
+      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      let json = null
+      try { json = await res.json() } catch (e) { json = null }
+      if (!res.ok) {
+        throw new Error(json?.error || json?.message || 'Failed to toggle like')
+      }
+      if (json.liked === false) {
+        // if we happen to be in a liked-only view, remove; for playlist detail we'll just update set
+        setLikedSet((cur) => { const next = new Set(Array.from(cur)); next.delete(String(song._id)); return next })
+        Alert.alert('Removed', 'Song removed from Liked')
+      } else {
+        setLikedSet((cur) => { const next = new Set(Array.from(cur)); next.add(String(song._id)); return next })
+        Alert.alert('Added', 'Song added to Liked')
+      }
+    } catch (e) {
+      console.warn('remove liked', e)
+      Alert.alert('Error', 'Could not update liked')
+    } finally {
+      closeMenu()
+    }
+  }
+
+  const addToPlaylist = async (song) => {
+    Alert.alert('Add to Playlist', 'Not implemented in this demo')
+    closeMenu()
+  }
+
+  const shareSong = async (song) => {
+    try {
+      await Share.share({ message: `${song.title} — ${song.artist}\n${song.url || ''}` })
+    } catch (e) {}
+    closeMenu()
+  }
+
+  const playNext = async (song) => { await onPlay(song); closeMenu() }
+
+  const toggleLike = async (song) => {
+    try {
+      if (!token) return Alert.alert('Not signed in')
+      const res = await fetch(API(`api/songs/${song._id}/like`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed to toggle like')
+      const liked = json.liked === true
+      setLikedSet((cur) => {
+        const next = new Set(Array.from(cur))
+        const key = String(song._id || song.id)
+        if (liked) next.add(key)
+        else next.delete(key)
+        return next
+      })
+      // no alert here to reduce noise; openMenu/removeFromLiked shows alerts when used
+    } catch (e) {
+      console.error('toggleLike error', e)
+      Alert.alert('Error', 'Could not update liked state')
+    }
+  }
+
+  const renderItem = useCallback(({ item }) => {
+    const isPlaying = current && current._id === item._id
+    const isLiked = likedSet.has(String(item._id))
+    return (
+      <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
+        <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover }} style={[styles.artwork, isPlaying && styles.playingArtwork]} />
+        <View style={styles.itemText}>
+          <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
+          <Text numberOfLines={1} style={styles.subtitle}>{item.artist || item.artists?.join(', ') || ''}</Text>
+        </View>
+        <Text style={styles.duration}>{formatDuration(item.duration || item.size)}</Text>
+        {/* reduce the circular liked/add button size for inline song rows */}
+        <AddCircleButton isAdded={isLiked} onPress={() => toggleLike(item)} size={30} />
+        <TouchableOpacity onPress={() => openMenu(item)} style={styles.menuButton}>
+          <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    )
+  }, [onPlay, current, likedSet])
+
+  const keyExtractor = useCallback((i) => String(i._id || i.id || i.title), [])
+
+  // Reanimated header
+  const HEADER_MAX = 220
+  const HEADER_MIN = 80
+  const HEADER_SCROLL = HEADER_MAX - HEADER_MIN
+  const onScroll = useAnimatedScrollHandler((ev) => { scrollY.value = ev.contentOffset.y })
+
+  const headerStyle = useAnimatedStyle(() => {
+    const h = interpolate(scrollY.value, [0, HEADER_SCROLL], [HEADER_MAX, HEADER_MIN], Extrapolate.CLAMP)
+    return { height: h }
+  })
+
+  const playButtonAnimatedStyle = useAnimatedStyle(() => {
+    const top = interpolate(scrollY.value, [0, HEADER_SCROLL], [HEADER_MAX - 64, HEADER_MIN - 36], Extrapolate.CLAMP)
+    const opacity = interpolate(scrollY.value, [HEADER_SCROLL * 0.6, HEADER_SCROLL], [1, 0], Extrapolate.CLAMP)
+    return { top, opacity }
+  })
+
+  // animate mode button so it hides along with the floating play button as header collapses
+  const modeButtonAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(scrollY.value, [HEADER_SCROLL * 0.6, HEADER_SCROLL], [1, 0], Extrapolate.CLAMP)
+    const translateX = interpolate(scrollY.value, [0, HEADER_SCROLL], [0, -6], Extrapolate.CLAMP)
+    return { opacity, transform: [{ translateX }], zIndex: 14 }
+  })
+
+  // seam mode should remain hidden (we don't introduce a separate mode button in the seam)
+  const seamModeAnimatedStyle = useAnimatedStyle(() => ({ opacity: 0 }))
+
+  const collapsedHeaderStyle = useAnimatedStyle(() => {
+    const progress = interpolate(scrollY.value, [HEADER_SCROLL * 0.6, HEADER_SCROLL], [0, 1], Extrapolate.CLAMP)
+    const opacity = progress
+    const translateY = interpolate(progress, [0, 1], [-8, 0], Extrapolate.CLAMP)
+    return { opacity, transform: [{ translateY }], zIndex: 60 }
+  })
+
+  const seamPlayStyle = useAnimatedStyle(() => {
+    const headerH = interpolate(scrollY.value, [0, HEADER_SCROLL], [HEADER_MAX, HEADER_MIN], Extrapolate.CLAMP)
+    const BUTTON_SIZE = 56
+    const top = headerH - (BUTTON_SIZE / 2) - 20
+    const visible = interpolate(scrollY.value, [HEADER_SCROLL * 0.92, HEADER_SCROLL], [0, 1], Extrapolate.CLAMP)
+    const scale = interpolate(scrollY.value, [HEADER_SCROLL * 0.92, HEADER_SCROLL], [0.95, 1], Extrapolate.CLAMP)
+    return { opacity: visible, top, transform: [{ scale }], zIndex: 140 }
+  })
+
+  const titleAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(scrollY.value, [0, HEADER_SCROLL], [1, 0], Extrapolate.CLAMP)
+    const scale = interpolate(scrollY.value, [0, HEADER_SCROLL], [1, 0.92], Extrapolate.CLAMP)
+    return { opacity, transform: [{ scale }] }
+  })
+
+  const headerImageStyle = useAnimatedStyle(() => {
+    const s = interpolate(scrollY.value, [0, HEADER_SCROLL], [1, 0.7], Extrapolate.CLAMP)
+    const translateY = interpolate(scrollY.value, [0, HEADER_SCROLL], [0, -Math.max(40, HEADER_SCROLL * 0.6)], Extrapolate.CLAMP)
+    const opacity = interpolate(scrollY.value, [0, HEADER_SCROLL * 0.6, HEADER_SCROLL], [1, 0.6, 0], Extrapolate.CLAMP)
+    return { transform: [{ scale: s }, { translateY }], opacity }
+  })
+
+  const searchBoxStyle = useAnimatedStyle(() => {
+    const top = interpolate(scrollY.value, [0, HEADER_SCROLL], [16, 8], Extrapolate.CLAMP)
+    const padding = interpolate(scrollY.value, [0, HEADER_SCROLL], [10, 6], Extrapolate.CLAMP)
+    const opacity = interpolate(scrollY.value, [0, HEADER_SCROLL * 0.6, HEADER_SCROLL], [1, 0.95, 0.85], Extrapolate.CLAMP)
+    return { position: 'absolute', left: 16, right: 16, top, paddingVertical: padding, opacity, zIndex: 50 }
+  })
+
+  if (loading) return <View style={[styles.container, { justifyContent: 'center' }]}><ActivityIndicator color={COLORS.primary} /></View>
+
+  return (
+    <GradientBackground variant="teal" bottomDark={true}>
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
+        <Reanimated.View style={[styles.header, headerStyle]} >
+          <AnimatedImage source={{ uri: playlist.imageUrl || playlist.poster || playlist.cover || playlist.songs[0]?.artworkUrl || playlist.songs[0]?.imageUrl }} style={[styles.headerImage, headerImageStyle]} />
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerSubtitle}>Playlist</Text>
+            <AnimatedText style={[styles.headerTitle, titleAnimatedStyle]}>{playlist.title}</AnimatedText>
+          </View>
+          <Reanimated.View style={[styles.playAllContainer, playButtonAnimatedStyle]} pointerEvents={undefined}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Reanimated.View style={modeButtonAnimatedStyle}>
+                <PlaybackModeButton style={styles.modeButton} />
+              </Reanimated.View>
+              <TouchableOpacity style={styles.seamPlayButton} onPress={async () => {
+                // play all / toggle
+                if (playerIsPlaying) { await pause(); return }
+                if (current && String(current._id) === String(playlist.songs[0]?._id)) { await resume(); return }
+                if (playlist.songs && playlist.songs.length) await onPlay(playlist.songs[0])
+              }} activeOpacity={0.85}>
+                {playerIsPlaying ? (
+                  <Ionicons name="pause" size={27} color={COLORS.black} />
+                ) : (
+                  <Ionicons name="play" size={22} color={COLORS.black} />
+                )}
+              </TouchableOpacity>
             </View>
+          </Reanimated.View>
+
+          <Reanimated.View style={[styles.searchBoxWrap, searchBoxStyle]}>
+            <View style={styles.searchInner}>
+              <Ionicons name="search" size={18} color={'rgba(198, 247, 255, 1)'} style={styles.searchIcon} />
+              <TextInput
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="Search playlist songs"
+                placeholderTextColor={'rgba(198, 247, 255, 1)'}
+                style={styles.searchInput}
+                underlineColorAndroid="transparent"
+              />
+            </View>
+          </Reanimated.View>
+        </Reanimated.View>
+
+        <AnimatedFlatList
+          data={(playlist.songs || []).filter(s => {
+            const q = (searchText || '').trim().toLowerCase()
+            if (!q) return true
+            return (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q)
+          })}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingTop: HEADER_MAX + 24, paddingBottom: 140 }}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
+        />
+
+        <AnimatedLinearGradient colors={[COLORS.cardBackground, COLORS.inputBackground]} locations={[0,0.8]} start={{x:0,y:0}} end={{x:1,y:0}} style={[styles.collapsedHeader, collapsedHeaderStyle]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
           </TouchableOpacity>
-        )}
-        contentContainerStyle={{ padding: 16 }}
-      />
-    </View>
-  );
+          <Text numberOfLines={1} style={styles.collapsedTitle}>{playlist.title}</Text>
+        </AnimatedLinearGradient>
+
+        <Reanimated.View style={[styles.seamPlayContainer, seamPlayStyle]} pointerEvents="box-none">
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Reanimated.View style={seamModeAnimatedStyle}>
+              <PlaybackModeButton style={styles.modeButtonSeam} />
+            </Reanimated.View>
+            <TouchableOpacity style={styles.seamPlayButton} onPress={async () => {
+              if (playerIsPlaying) { await pause(); return }
+              if (current && String(current._id) === String(playlist.songs[0]?._id)) { await resume(); return }
+              if (playlist.songs && playlist.songs.length) await onPlay(playlist.songs[0])
+            }} activeOpacity={0.85}>
+              {playerIsPlaying ? (
+                <Ionicons name="pause" size={27} color={COLORS.black} />
+              ) : (
+                <Ionicons name="play" size={22} color={COLORS.black} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </Reanimated.View>
+
+        <ContextMenu
+          menuVisible={menuVisible}
+          closeMenu={closeMenu}
+          menuAnim={menuAnim}
+          menuTarget={menuTarget}
+          playNext={playNext}
+          removeFromLiked={removeFromLiked}
+          addToPlaylist={addToPlaylist}
+          shareSong={shareSong}
+        />
+      </View>
+    </GradientBackground>
+  )
+}
+
+function formatDuration(d) {
+  if (!d && d !== 0) return ''
+  const sec = Math.floor((d || 0))
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${m}:${s < 10 ? '0' : ''}${s}`
 }

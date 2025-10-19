@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Image, Alert, Modal, TextInput, Animated, Keyboard, Platform, Pressable } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
 import { useFocusEffect } from '@react-navigation/native';
 import { API_URL, API } from "../../constants/api";
@@ -7,18 +8,25 @@ import COLORS from "../../constants/colors";
 import styles from "../../assets/styles/playlists.styles";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
+import { BlurView } from 'expo-blur';
 
 export default function Playlists() {
   const [playlists, setPlaylists] = useState([]);
+  const [pinnedIds, setPinnedIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const router = useRouter();
   const { token, user } = useAuthStore();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const anim = useRef(new Animated.Value(0)).current; // 0 closed, 1 open
+  const inputRef = useRef(null);
 
   useEffect(() => {
     fetchPlaylists();
+    loadPinnedIds();
   }, []);
 
   // Refetch when screen is focused (so newly created playlists appear)
@@ -58,6 +66,36 @@ export default function Playlists() {
     setMenuVisible(true);
   };
 
+  const PIN_KEY = '@neurotune:pinned_playlists';
+  const loadPinnedIds = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(PIN_KEY);
+      if (raw) setPinnedIds(JSON.parse(raw));
+    } catch (e) { console.warn('loadPinnedIds', e) }
+  }
+
+  const savePinnedIds = async (ids) => {
+    try {
+      await AsyncStorage.setItem(PIN_KEY, JSON.stringify(ids));
+      setPinnedIds(ids);
+    } catch (e) { console.warn('savePinnedIds', e) }
+  }
+
+  const togglePin = async (playlist) => {
+    if (!playlist) return;
+    const id = String(playlist._id || '');
+    const isPinned = pinnedIds.includes(id);
+    const next = isPinned ? pinnedIds.filter(i => i !== id) : [id, ...pinnedIds];
+    await savePinnedIds(next);
+    // reorder local playlists
+    setPlaylists((cur) => {
+      const rest = cur.filter(p => String(p._id) !== id);
+      if (!isPinned) return [{ ...playlist, _pinned: true }, ...rest];
+      return rest.map(p => ({ ...p, _pinned: undefined }));
+    });
+    setMenuVisible(false);
+  }
+
   const fetchPlaylists = useCallback(async () => {
     try {
       // If already refreshing (user pulled) don't flip the full-page loading indicator
@@ -66,8 +104,37 @@ export default function Playlists() {
       const res = await fetch(endpoint, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const data = await res.json();
       // backend returns { playlists }
-      if (data && Array.isArray(data.playlists)) setPlaylists(data.playlists);
-      else if (Array.isArray(data)) setPlaylists(data);
+      let list = (data && Array.isArray(data.playlists)) ? data.playlists : (Array.isArray(data) ? data : []);
+
+      // fetch liked count/songs for the user and inject a synthetic 'Liked Songs' playlist
+      try {
+        if (token) {
+          const lr = await fetch(`${API_URL}api/user/liked`, { headers: { Authorization: `Bearer ${token}` } });
+          const lj = await lr.json();
+          const likedCount = Array.isArray(lj) ? lj.length : (lj?.length || 0);
+          const likedPseudo = {
+            _id: 'liked',
+            title: 'Liked Songs',
+            description: `${likedCount} tracks`,
+            user: user || {},
+            _isSynthetic: true
+          };
+          // inject only if not already present
+          if (!list.find(p => String(p._id) === 'liked')) list = [likedPseudo, ...list];
+        }
+      } catch (e) { console.warn('liked fetch error', e) }
+
+      // if there are pinned IDs, move those to the top in order
+      if (pinnedIds && pinnedIds.length) {
+        const pinned = [];
+        const rest = [];
+        list.forEach(p => {
+          if (pinnedIds.includes(String(p._id))) pinned.push({ ...p, _pinned: true }); else rest.push(p);
+        });
+        list = [...pinned, ...rest];
+      }
+
+      setPlaylists(list);
     } catch (error) {
       console.error("fetchPlaylists error", error);
     } finally {
@@ -75,6 +142,31 @@ export default function Playlists() {
       setRefreshing(false);
     }
   }, [token, refreshing]);
+
+  // open/close animation handlers
+  const openSearch = () => {
+    setSearchOpen(true);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(() => {
+      // focus input after animation
+      setTimeout(() => inputRef.current?.focus?.(), 50);
+    });
+  };
+
+  const closeSearch = () => {
+    Keyboard.dismiss();
+    Animated.timing(anim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(() => {
+      setSearchOpen(false);
+      setSearchQuery('');
+    });
+  };
 
   const onRefresh = async () => {
     try {
@@ -101,9 +193,24 @@ export default function Playlists() {
     const fallbackSongArtwork = item.songs && item.songs[0] && (item.songs[0].artworkUrl || item.songs[0].artwork);
 
     return (
-      <TouchableOpacity style={styles.card} onPress={() => router.push(`/Playlists/${item._id}`)}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          { transform: [{ scale: pressed ? 0.985 : 1 }], opacity: pressed ? 0.96 : 1 }
+        ]}
+        android_ripple={{ color: 'rgba(255,255,255,0.03)' }}
+        onPress={() => {
+          if (String(item._id) === 'liked') return router.push('/Playlists/Liked');
+          return router.push(`/Playlists/${item._id}`);
+        }}
+        onLongPress={() => handleOpenMenu(item)}
+        hitSlop={8}
+        accessibilityRole="button"
+      >
         <View style={styles.cardLeft}>
-          {playlistArtwork ? (
+          {String(item._id) === 'liked' ? (
+            <Image source={require('../../assets/images/heart.png')} style={styles.artwork} />
+          ) : playlistArtwork ? (
             <Image source={{ uri: playlistArtwork }} style={styles.artwork} />
           ) : fallbackSongArtwork ? (
             <Image source={{ uri: typeof fallbackSongArtwork === 'string' ? fallbackSongArtwork : fallbackSongArtwork.url }} style={styles.artwork} />
@@ -131,7 +238,7 @@ export default function Playlists() {
             <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
@@ -144,7 +251,107 @@ export default function Playlists() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: 8 }]}> 
+      {/* Header */}
+      <View style={styles.libraryHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={styles.avatar}>
+            <Image source={{ uri: user?.profileImage || user?.avatar || 'https://i.pravatar.cc/100' }} style={styles.avatarImg} />
+          </View>
+          <Text style={styles.titleLarge}>Your Library</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 1 }} />
+          {/* search & add buttons - search opens animated overlay */}
+          <TouchableOpacity style={{ marginRight: 12 }} onPress={openSearch} accessibilityLabel="Open search">
+            <Ionicons name="search" size={26} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/createStack/CreatePlaylist')}>
+            <Ionicons name="add" size={32} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+        </View>
+        {/* Animated search overlay (renders at top of screen, absolute) */}
+        <Animated.View pointerEvents={searchOpen ? 'auto' : 'none'} style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 0,
+          paddingTop: 8,
+          zIndex: 40,
+          // animate opacity and translateY
+          opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }]
+        }}>
+          <BlurView intensity={90} tint="default" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} />
+          <View style={{ padding: 23, paddingTop: 24, backgroundColor: COLORS.cardBackground + 'cc', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Animated.View style={{
+                  backgroundColor: COLORS.inputBackground,
+                  borderRadius: 28,
+                  paddingHorizontal: 12,
+                  height: 44,
+                  justifyContent: 'center',
+                  transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }]
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="search" size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
+                    <TextInput
+                      ref={inputRef}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder="Search your library"
+                      placeholderTextColor={COLORS.textSecondary}
+                      style={{ color: COLORS.textPrimary, flex: 1 }}
+                      accessible
+                      accessibilityLabel="Library search"
+                      returnKeyType="search"
+                      onSubmitEditing={() => { /* no-op for now */ }}
+                    />
+                    {!!searchQuery && (
+                      <TouchableOpacity onPress={() => setSearchQuery('')} style={{ paddingLeft: 8 }} accessibilityLabel="Clear search">
+                        <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </Animated.View>
+              </View>
+              <TouchableOpacity onPress={closeSearch} style={{ marginLeft: 12 }} accessibilityLabel="Cancel search">
+                <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      </View>
+
+      
+
+      {/* Pill tabs */}
+      <View style={styles.pillRow}>
+        <TouchableOpacity style={[styles.pill, styles.pillActive]} onPress={() => {}}>
+          <Text style={[styles.pillText, styles.pillTextActive]}>Playlists</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pill} onPress={() => Alert.alert('Not implemented', 'Podcasts view')}>
+          <Text style={styles.pillText}>Podcasts</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pill} onPress={() => Alert.alert('Not implemented', 'Albums view')}>
+          <Text style={styles.pillText}>Albums</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pill} onPress={() => Alert.alert('Not implemented', 'Artists view')}>
+          <Text style={styles.pillText}>Artists</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Recents header */}
+      <View style={styles.recentsRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons name="swap-vertical" size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
+          <Text style={styles.recentsTitle}>Recents</Text>
+        </View>
+        <TouchableOpacity onPress={() => Alert.alert('Change view') }>
+          <Ionicons name="grid" size={20} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+      </View>
       <Modal
         visible={menuVisible}
         transparent
@@ -190,6 +397,20 @@ export default function Playlists() {
               <Ionicons name="trash-outline" size={24} color={COLORS.error} />
               <Text style={{ color: COLORS.error, marginLeft: 12, fontSize: 16 }}>Delete Playlist</Text>
             </TouchableOpacity>
+            {/* Pin / Unpin option */}
+            {selectedPlaylist && !selectedPlaylist._isSynthetic && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 12,
+                }}
+                onPress={() => togglePin(selectedPlaylist)}
+              >
+                <Ionicons name={pinnedIds.includes(String(selectedPlaylist._id)) ? 'pin' : 'pin-outline'} size={20} color={COLORS.textPrimary} />
+                <Text style={{ color: COLORS.textPrimary, marginLeft: 12, fontSize: 16 }}>{pinnedIds.includes(String(selectedPlaylist._id)) ? 'Unpin' : 'Pin to top'}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
               style={{ 
                 paddingVertical: 12,
@@ -204,11 +425,21 @@ export default function Playlists() {
           </View>
         </TouchableOpacity>
       </Modal>
-      <FlatList
-        data={playlists}
+      {(() => {
+        const filteredPlaylists = playlists.filter(p => {
+          const q = (searchQuery || '').trim().toLowerCase()
+          if (!q) return true
+          return (p.title || '').toLowerCase().includes(q) || (p.user?.username || '').toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)
+        })
+
+        return (
+          <FlatList
+            data={filteredPlaylists}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 6 }}
+            ListHeaderComponent={null}
+            extraData={searchQuery}
         refreshing={refreshing}
         onRefresh={onRefresh}
         ListEmptyComponent={() => (
@@ -217,11 +448,9 @@ export default function Playlists() {
           </View>
         )}
       />
-      <TouchableOpacity
-        onPress={() => router.push('/(tabs)/createStack/CreatePlaylist')}
-        style={{ position: 'absolute', right: 18, bottom: 120, backgroundColor: COLORS.primary, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: COLORS.background, fontSize: 40 }}>+</Text>
-      </TouchableOpacity>
+        )
+      })()}
+      {/* floating create button removed in favor of header + */}
     </View>
   );
 }

@@ -1,4 +1,5 @@
 import asyncHandler from "express-async-handler";
+import mongoose from 'mongoose';
 import Song from "../models/song.model.js";
 import User from "../models/user.model.js";
 import cloudinary from "../config/cloudinary.js";
@@ -6,7 +7,24 @@ import { ENV } from "../config/env.js";
 
 // list recent songs
 export const getSongs = asyncHandler(async (req, res) => {
-  const songs = await Song.find().sort({ createdAt: -1 }).populate('user', 'username firstName lastName profileImage');
+  // Support optional filtering by userId query parameter. Accepts either a Mongo ObjectId or a username.
+  const { userId } = req.query || {};
+  const filter = {};
+  if (userId) {
+    // If it's a valid ObjectId, filter by user field
+    if (mongoose.Types.ObjectId.isValid(String(userId))) {
+      filter.user = String(userId);
+    } else {
+      // Otherwise, try to resolve as username
+      try {
+        const u = await User.findOne({ username: String(userId) }).select('_id');
+        if (u && u._id) filter.user = u._id;
+      } catch (e) {
+        // ignore and return an empty list later if user not found
+      }
+    }
+  }
+  const songs = await Song.find(filter).sort({ createdAt: -1 }).populate('user', 'username firstName lastName profileImage');
   res.status(200).json({ songs });
 });
 
