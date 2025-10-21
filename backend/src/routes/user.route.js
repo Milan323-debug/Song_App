@@ -26,8 +26,9 @@ router.post('/batch', getUsersBatch);
 // protected routes
 router.post("/sync", protectRoute, syncUser);
 router.get("/me", protectRoute, getCurrentUser);
-// allow multipart upload for profileImage (field name: 'profileImage')
-router.put("/profile", protectRoute, upload.single("profileImage"), updateProfile);
+// allow multipart upload for profileImage and bannerImage
+// accept either one or both files in the same request
+router.put("/profile", protectRoute, upload.fields([{ name: 'profileImage', maxCount: 1 }, { name: 'bannerImage', maxCount: 1 }]), updateProfile);
 router.post("/follow/:targetUserId", protectRoute, followUser);
 
 // liked songs

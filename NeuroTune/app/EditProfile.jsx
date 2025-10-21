@@ -89,41 +89,44 @@ export default function EditProfile() {
         return cloudJson.secure_url || cloudJson.url
       }
 
-      // Upload images (if changed)
-      if (profileImage && (profileImage.startsWith('file:') || profileImage.includes('/'))) {
-        try {
-          const url = await uploadImageToCloudinary(profileImage, 'profile_images')
-          if (url) updates.profileImage = url
-        } catch (e) {
-          console.error('profile image cloud upload failed', e)
-          Alert.alert('Upload failed', 'Failed to upload profile image')
-          // continue — allow saving other fields
-        }
-      } else if (profileImage && (profileImage.startsWith('http://') || profileImage.startsWith('https://'))) {
-        updates.profileImage = profileImage
-      }
+      // Decide whether to send multipart/form-data (if local files selected) or JSON
+      const isLocalProfile = profileImage && (profileImage.startsWith('file:') || profileImage.includes('/'))
+      const isLocalBanner = bannerImage && (bannerImage.startsWith('file:') || bannerImage.includes('/'))
 
-      if (bannerImage && (bannerImage.startsWith('file:') || bannerImage.includes('/'))) {
-        try {
-          const url = await uploadImageToCloudinary(bannerImage, 'profile_banners')
-          if (url) updates.bannerImage = url
-        } catch (e) {
-          console.error('banner image cloud upload failed', e)
-          Alert.alert('Upload failed', 'Failed to upload banner image')
+      let res
+      if (isLocalProfile || isLocalBanner) {
+        const form = new FormData()
+        form.append('firstName', updates.firstName)
+        form.append('lastName', updates.lastName)
+        form.append('bio', updates.bio)
+        form.append('location', updates.location)
+        if (isLocalProfile) {
+          const parts = profileImage.split('/')
+          const filename = parts[parts.length - 1]
+          form.append('profileImage', { uri: profileImage, name: filename, type: 'image/jpeg' })
         }
-      } else if (bannerImage && (bannerImage.startsWith('http://') || bannerImage.startsWith('https://'))) {
-        updates.bannerImage = bannerImage
-      }
+        if (isLocalBanner) {
+          const parts = bannerImage.split('/')
+          const filename = parts[parts.length - 1]
+          form.append('bannerImage', { uri: bannerImage, name: filename, type: 'image/jpeg' })
+        }
 
-      // send JSON update to backend
-      const res = await fetch(`${API_URL}api/user/profile`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updates)
-      })
+        res = await fetch(`${API_URL}api/user/profile`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form
+        })
+      } else {
+        // no local files, send JSON with URLs or text fields
+        if (profileImage && (profileImage.startsWith('http://') || profileImage.startsWith('https://'))) updates.profileImage = profileImage
+        if (bannerImage && (bannerImage.startsWith('http://') || bannerImage.startsWith('https://'))) updates.bannerImage = bannerImage
+
+        res = await fetch(`${API_URL}api/user/profile`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        })
+      }
 
       if (!res.ok) {
         const txt = await res.text()

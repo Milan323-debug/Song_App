@@ -86,8 +86,7 @@ export default function Create() {
     form.append("api_key", signJson.api_key);
     form.append("timestamp", String(signJson.timestamp));
     form.append("signature", signJson.signature);
-    form.append("resource_type", "raw");
-    form.append("folder", "songs");
+  if (signJson.folder) form.append('folder', signJson.folder);
 
     const uploadRes = await fetch(cloudUrl, { method: "POST", body: form });
     const cloudJson = await uploadRes.json();
@@ -110,7 +109,7 @@ export default function Create() {
     form.append("api_key", signJson.api_key);
     form.append("timestamp", String(signJson.timestamp));
     form.append("signature", signJson.signature);
-    form.append("folder", "songs/artwork");
+  if (signJson.folder) form.append('folder', signJson.folder);
 
     const uploadRes = await fetch(cloudUrl, { method: "POST", body: form });
     const cloudJson = await uploadRes.json();

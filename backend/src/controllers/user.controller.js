@@ -65,25 +65,49 @@ export const updateProfile = asyncHandler(async (req, res) => {
 	// If multer processed other files (like bannerImage), they may be in req.files
 	const updates = req.body || {};
 
-	// handle multipart upload for profileImage (single file)
-	const profileFile = req.file; // from upload.single('profileImage')
-	if (profileFile && profileFile.buffer) {
-		try {
-			const base64Image = `data:${profileFile.mimetype};base64,${profileFile.buffer.toString('base64')}`;
-			const uploadResponse = await cloudinary.uploader.upload(base64Image, {
-				folder: 'profile_images',
-				resource_type: 'image',
-				transformation: [
-					{ width: 800, height: 800, crop: 'limit' },
-					{ quality: 'auto' },
-					{ format: 'auto' },
-				],
-			});
-			updates.profileImage = uploadResponse.secure_url;
-		} catch (uploadErr) {
-			console.error('Cloudinary upload error (profileFile):', uploadErr);
+		// handle multipart upload for profileImage (single file) and bannerImage (single file)
+		// multer.fields will populate req.files as an object
+		const files = req.files || {};
+		const profileFileArr = files.profileImage || [];
+		const bannerFileArr = files.bannerImage || [];
+		const profileFile = Array.isArray(profileFileArr) && profileFileArr.length > 0 ? profileFileArr[0] : null;
+		const bannerFile = Array.isArray(bannerFileArr) && bannerFileArr.length > 0 ? bannerFileArr[0] : null;
+
+		if (profileFile && profileFile.buffer) {
+			try {
+				const base64Image = `data:${profileFile.mimetype};base64,${profileFile.buffer.toString('base64')}`;
+				const uploadResponse = await cloudinary.uploader.upload(base64Image, {
+					folder: 'profile_images',
+					resource_type: 'image',
+					transformation: [
+						{ width: 800, height: 800, crop: 'limit' },
+						{ quality: 'auto' },
+						{ format: 'auto' },
+					],
+				});
+				updates.profileImage = uploadResponse.secure_url;
+			} catch (uploadErr) {
+				console.error('Cloudinary upload error (profileFile):', uploadErr);
+			}
 		}
-	}
+
+		if (bannerFile && bannerFile.buffer) {
+			try {
+				const base64Image = `data:${bannerFile.mimetype};base64,${bannerFile.buffer.toString('base64')}`;
+				const uploadResponse = await cloudinary.uploader.upload(base64Image, {
+					folder: 'profile_banners',
+					resource_type: 'image',
+					transformation: [
+						{ width: 1200, height: 400, crop: 'limit' },
+						{ quality: 'auto' },
+						{ format: 'auto' },
+					],
+				});
+				updates.bannerImage = uploadResponse.secure_url;
+			} catch (uploadErr) {
+				console.error('Cloudinary upload error (bannerFile):', uploadErr);
+			}
+		}
 	const allowed = ['firstName', 'lastName', 'bio', 'location', 'profileImage', 'bannerImage'];
 	// If profileImage or bannerImage is a base64 data URI (sent in body), upload to Cloudinary
 	if (updates.profileImage && typeof updates.profileImage === 'string' && updates.profileImage.startsWith('data:')) {
