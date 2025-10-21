@@ -191,7 +191,7 @@ export default function PlaylistDetail() {
     const isLiked = likedSet.has(String(item._id))
     return (
       <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
-        <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover }} style={[styles.artwork, isPlaying && styles.playingArtwork]} />
+  <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover }} style={[styles.songArtwork, isPlaying && styles.playingArtwork]} />
         <View style={styles.itemText}>
           <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
           <Text numberOfLines={1} style={styles.subtitle}>{item.artist || item.artists?.join(', ') || ''}</Text>
@@ -271,7 +271,34 @@ export default function PlaylistDetail() {
     return { position: 'absolute', left: 16, right: 16, top, paddingVertical: padding, opacity, zIndex: 50 }
   })
 
-  if (loading) return <View style={[styles.container, { justifyContent: 'center' }]}><ActivityIndicator color={COLORS.primary} /></View>
+  if (loading) return (
+    <GradientBackground variant="teal" bottomDark={true}>
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
+        <View style={[styles.header, { height: 180, paddingTop: 24 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 120, height: 120, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)', marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <View style={{ width: 220, height: 20, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+              <View style={{ width: 140, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 6 }} />
+            </View>
+          </View>
+        </View>
+        <View style={{ paddingTop: 24, paddingHorizontal: 16 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <View style={{ width: '60%', height: 16, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+                <View style={{ width: '40%', height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 8 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </GradientBackground>
+  
+  
+  )
 
   return (
     <GradientBackground variant="teal" bottomDark={true}>
@@ -326,6 +353,7 @@ export default function PlaylistDetail() {
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={{ paddingTop: HEADER_MAX + 24, paddingBottom: 140 }}
+          ListFooterComponent={() => <View style={{ height: 120 }} />}
           onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}

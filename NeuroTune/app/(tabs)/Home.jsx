@@ -73,6 +73,27 @@ const GridCard = React.memo(({ item, onPress }) => (
   </TouchableOpacity>
 ))
 
+// Skeleton / placeholder cards (show while loading)
+const SkeletonFeatureCard = () => {
+  return (
+    <Animated.View style={{ width: 260, height: 140, borderRadius: 12, marginRight: 12, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.04)', justifyContent: 'center', alignItems: 'center' }}>
+      <Animated.View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.02)' }} />
+      <View style={{ position: 'absolute', left: 12, bottom: 12 }}>
+        <View style={{ width: 140, height: 18, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 8 }} />
+        <View style={{ width: 90, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+      </View>
+    </Animated.View>
+  )
+}
+
+const SkeletonGridCard = React.memo(() => (
+  <View style={{ width: CARD_W, marginBottom: 14 }}>
+    <View style={{ width: CARD_W, height: CARD_W, borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.04)' }} />
+    <View style={{ height: 8 }} />
+    <View style={{ width: CARD_W * 0.7, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+  </View>
+))
+
 export default function Home() {
   const authUser = useAuthStore((s) => s.user)
   const setUser = useAuthStore((s) => s.user)
@@ -80,10 +101,28 @@ export default function Home() {
   const router = useRouter()
   const [tab, setTab] = useState('All')
 
+  const onPressAvatar = () => {
+    // navigate to profile; adjust route if your profile route differs
+    router.push('/Profile')
+  }
+
   const [featured, setFeatured] = useState([])
   const [gridItems, setGridItems] = useState([])
   const [recents, setRecents] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // Determine today's weekday name and use it for featured titles (e.g. "New Music Monday")
+  const { weekdayName, featuredFirstTitle, headerSectionTitle } = React.useMemo(() => {
+    const names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+    let idx = 0
+    try { idx = new Date().getDay() } catch (e) { idx = 0 }
+    const name = names[idx]
+    return {
+      weekdayName: name,
+      featuredFirstTitle: `New Music ${name}`,
+      headerSectionTitle: `${name} drops picked for you`,
+    }
+  }, [])
 
   const anim = useRef(new Animated.Value(0)).current
 
@@ -133,7 +172,7 @@ export default function Home() {
         const featuredItems = grid.slice(0, 2).map(g => ({ id: `f_${g.id}`, title: g.title, subtitle: g.subtitle, image: g.image }))
 
         setFeatured(featuredItems.length ? featuredItems : [
-          { id: 'f1', title: "New Music Friday", subtitle: 'Latest releases', image: 'https://picsum.photos/seed/friday/400/200' },
+          { id: 'f1', title: featuredFirstTitle, subtitle: 'Latest releases', image: `https://picsum.photos/seed/${weekdayName.toLowerCase()}/400/200` },
           { id: 'f2', title: 'Release Radar', subtitle: 'Fresh picks', image: 'https://picsum.photos/seed/radar/400/200' },
         ])
 
@@ -142,7 +181,7 @@ export default function Home() {
         console.warn('[Home] failed to fetch playlists', err)
         // fallback to placeholder content
         setFeatured([
-          { id: 'f1', title: "New Music Friday", subtitle: 'Latest releases', image: 'https://picsum.photos/seed/friday/400/200' },
+          { id: 'f1', title: featuredFirstTitle, subtitle: 'Latest releases', image: `https://picsum.photos/seed/${weekdayName.toLowerCase()}/400/200` },
           { id: 'f2', title: 'Release Radar', subtitle: 'Fresh picks', image: 'https://picsum.photos/seed/radar/400/200' },
         ])
         const items = []
@@ -205,19 +244,29 @@ export default function Home() {
 
   const renderHeader = useMemo(() => (
     <View style={{ paddingHorizontal: PADDING, paddingTop: 18, paddingBottom: 12 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-        <PillTab label="All" active={tab==='All'} onPress={() => setTab('All')} />
-        <PillTab label="Music" active={tab==='Music'} onPress={() => setTab('Music')} />
-        <PillTab label="Podcasts" active={tab==='Podcasts'} onPress={() => setTab('Podcasts')} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={onPressAvatar} style={{ width: 40, height: 40, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }}>
+          <Image source={{ uri: authUser?.profileImage || authUser?.avatar || 'https://as2.ftcdn.net/v2/jpg/05/89/93/27/1000_F_589932782_vQAEAZhHnq1QCGu5ikwrYaQD0Mmurm0N.jpg' }} style={{ width: 40, height: 40 }} />
+        </TouchableOpacity>
+          <PillTab label="All" active={tab==='All'} onPress={() => setTab('All')} />
+          <PillTab label="Music" active={tab==='Music'} onPress={() => setTab('Music')} />
+          <PillTab label="Podcasts" active={tab==='Podcasts'} onPress={() => setTab('Podcasts')} />
+        </View>
+        
       </View>
 
       <View style={{ height: 160 }}>
-        <FlatList horizontal data={featured} keyExtractor={(i)=>i.id} showsHorizontalScrollIndicator={false} renderItem={({item}) => <FeatureCard item={item} />} />
+        {loading ? (
+          <FlatList horizontal data={[1,2]} keyExtractor={(i)=>String(i)} showsHorizontalScrollIndicator={false} renderItem={() => <SkeletonFeatureCard />} />
+        ) : (
+          <FlatList horizontal data={featured} keyExtractor={(i)=>i.id} showsHorizontalScrollIndicator={false} renderItem={({item}) => <FeatureCard item={item} />} />
+        )}
       </View>
 
       <View style={{ height: 18 }} />
     </View>
-  ), [tab, featured])
+  ), [tab, featured, loading])
 
   const showRecents = recents && recents.length > 0
 
@@ -248,7 +297,7 @@ export default function Home() {
               </View>
             )}
             <View style={{ paddingHorizontal: PADDING, marginTop: 8 }}>
-              <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Friday drops picked for you</Text>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>{headerSectionTitle}</Text>
             </View>
           </>
         }
@@ -259,8 +308,17 @@ export default function Home() {
             const right = gridItems[index+1]
             return (
               <View style={{ flexDirection: 'row', paddingHorizontal: PADDING, justifyContent: 'space-between' }}>
-                <GridCard item={left} onPress={onPressCard} />
-                {right ? <GridCard item={right} onPress={onPressCard} /> : <View style={{ width: CARD_W }} />}
+                {loading ? (
+                  <>
+                    <SkeletonGridCard />
+                    <SkeletonGridCard />
+                  </>
+                ) : (
+                  <>
+                    <GridCard item={left} onPress={onPressCard} />
+                    {right ? <GridCard item={right} onPress={onPressCard} /> : <View style={{ width: CARD_W }} />}
+                  </>
+                )}
               </View>
             )
           }

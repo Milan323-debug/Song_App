@@ -1,7 +1,9 @@
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
+import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, RefreshControl, FlatList } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { LinearGradient } from 'expo-linear-gradient'
+import Reanimated, { FadeIn } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import COLORS from '../../constants/colors'
 import styles from '../../assets/styles/profile.styles'
@@ -17,8 +19,11 @@ export default function Profile() {
     songs: 0,
     playlists: 0
   })
+  const [followers, setFollowers] = useState(0)
+  const [following, setFollowing] = useState(0)
+  const [recentSongs, setRecentSongs] = useState([])
+  const router = useRouter()
   const [uploadingImage, setUploadingImage] = useState(false)
-
   const fetchUserData = async () => {
     try {
       setLoading(true)
@@ -139,9 +144,26 @@ export default function Profile() {
       }
 
       setStats({ songs: songsCount, playlists: playlistsCount });
+      // set followers/following if available on userData
+      if (userData) {
+        setFollowers(userData.followers?.length || userData.followersCount || 0)
+        setFollowing(userData.following?.length || userData.followingCount || 0)
+      }
     } catch (error) {
       console.error('Error fetching user stats:', error)
     }
+  }
+
+  const fetchRecentSongs = async () => {
+    try {
+      // try username-based endpoint first
+      const endpoint = `${API_URL}api/songs/user/${encodeURIComponent(user.username || user._id)}`
+      const res = await fetch(endpoint, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      if (!res.ok) return
+      const json = await res.json()
+      const list = Array.isArray(json.songs) ? json.songs : (Array.isArray(json) ? json : [])
+      setRecentSongs(list.slice(0, 8))
+    } catch (e) { console.warn('fetchRecentSongs', e) }
   }
 
   const handleRefresh = async () => {
@@ -154,8 +176,11 @@ export default function Profile() {
     if (user && token) {
       fetchUserData()
       fetchUserStats()
+      fetchRecentSongs()
     }
   }, [user, token])
+
+  // (no glow animation) static avatar wrapper
 
   const handleLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
@@ -180,7 +205,7 @@ export default function Profile() {
       }
     >
       <LinearGradient
-        colors={["rgba(0,0,0,0.9)", "rgba(0,0,0,0.6)"]}
+        colors={["rgba(0,0,0,0.9)", "rgba(0, 47, 55, 0.6)"]}
         style={styles.profileHeader}
       >
         <View style={styles.bannerContainer}>
@@ -198,64 +223,113 @@ export default function Profile() {
           )}
         </View>
 
-        <View style={styles.profileInfo}>
-          <View style={{ width: 100 }}>
-            <Image 
-              source={{ uri: userData?.profileImage || user?.profileImage }} 
-              style={styles.profileImage}
-            />
-            <TouchableOpacity
-              onPress={pickAndUploadProfileImage}
-              style={{
-                position: 'absolute',
-                right: 4,
-                bottom: 4,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                borderRadius: 18,
-                padding: 6,
-              }}
-            >
-              {uploadingImage ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <Ionicons name="pencil" size={16} color={COLORS.white} />
-              )}
-            </TouchableOpacity>
-          </View>
-          <View style={styles.nameContainer}>
-            <Text style={styles.name}>{userData?.firstName} {userData?.lastName}</Text>
-            <Text style={styles.username}>@{userData?.username || user?.username}</Text>
+        <View style={[styles.profileInfo, styles.headerRow]}>
+          <View style={styles.headerLeft}>
+            <View style={styles.profileImageWrap}>
+              <Image 
+                source={{ uri: userData?.profileImage || user?.profileImage }} 
+                style={styles.profileImage}
+              />
+
+              <TouchableOpacity
+                onPress={pickAndUploadProfileImage}
+                style={styles.editButton}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Ionicons name="pencil" size={16} color={COLORS.white} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {userData?.bio && (
-            <Text style={styles.bio}>{userData.bio}</Text>
-          )}
+          <View style={styles.headerRight} paddingRight={8}>
+            <View style={styles.nameContainer}>
+              <Text style={styles.name}>{userData?.firstName} {userData?.lastName}</Text>
+              <Text style={styles.username}>@{userData?.username || user?.username}</Text>
+            </View>
 
-          <View style={styles.statsContainer}>
-            {userData?.location && (
-              <View style={styles.locationContainer}>
-                <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
-                <Text style={styles.locationText}>{userData.location}</Text>
-              </View>
+            {userData?.bio && (
+              <Text style={styles.bio}>{userData.bio}</Text>
             )}
-            <View style={styles.stats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.songs}</Text>
-                <Text style={styles.statLabel}>Songs</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.playlists}</Text>
-                <Text style={styles.statLabel}>Playlists</Text>
+
+            <View style={styles.statsContainer}>
+              {userData?.location && (
+                <View style={styles.locationContainer}>
+                  <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.locationText}>{userData.location}</Text>
+                </View>
+              )}
+              <View style={styles.statsRow}>
+                <TouchableOpacity style={styles.statCard} onPress={() => Alert.alert('Followers', `${followers} followers`)}>
+                  <Ionicons name="people" size={20} color={COLORS.primary} />
+                  <Text style={styles.statValue}>{followers}</Text>
+                  <Text style={styles.statLabel}>Followers</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.statCard} onPress={() => Alert.alert('Following', `${following} following`)}>
+                  <Ionicons name="person-add" size={20} color={COLORS.primary} />
+                  <Text style={styles.statValue}>{following}</Text>
+                  <Text style={styles.statLabel}>Following</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.statCard} onPress={() => router.push('/Playlists/UserSongs')}>
+                  <Ionicons name="musical-notes" size={20} color={COLORS.primary} />
+                  <Text style={styles.statValue}>{stats.songs}</Text>
+                  <Text style={styles.statLabel}>Songs</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.statCard} onPress={() => router.push('/Playlists')}>
+                  <Ionicons name="albums" size={20} color={COLORS.primary} />
+                  <Text style={styles.statValue}>{stats.playlists}</Text>
+                  <Text style={styles.statLabel}>Playlists</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
         </View>
       </LinearGradient>
 
-      <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-        <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-        <Text style={styles.logoutText}>Log out</Text>
-      </TouchableOpacity>
+    <View style={{ paddingHorizontal: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+          <TouchableOpacity style={[styles.addButton, { flex: 1, marginRight: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={() => router.push('/EditProfile')}>
+            <Ionicons name="create-outline" size={16} color={COLORS.white} />
+            <Text style={[styles.addButtonText, { marginLeft: 8 }]}>Edit Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.addButton, { backgroundColor: 'rgba(255,255,255,0.04)', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={() => router.push('/Settings')}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.textPrimary} />
+            <Text style={[styles.addButtonText, { color: COLORS.textPrimary, marginLeft: 8 }]}>Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ marginTop: 14 }}>
+          <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Recent uploads</Text>
+          {recentSongs && recentSongs.length > 0 ? (
+            <FlatList
+              data={recentSongs}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(i) => i._id}
+              renderItem={({ item, index }) => (
+                <Reanimated.View entering={FadeIn.delay(index * 80).duration(400)} style={{ marginRight: 12 }}>
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => router.push(`/Songs/${item._id}`)}>
+                    <View style={styles.recentCard}>
+                      <Image source={{ uri: item.artworkUrl || item.artwork || `https://picsum.photos/seed/${item._id}/300/300` }} style={{ width: '100%', height: '100%' }} />
+                    </View>
+                    <Text numberOfLines={1} style={{ color: COLORS.textPrimary, marginTop: 8, width: 120 }}>{item.title}</Text>
+                    <Text numberOfLines={1} style={{ color: COLORS.textSecondary, fontSize: 12, width: 120 }}>{item.artist || ''}</Text>
+                  </TouchableOpacity>
+                </Reanimated.View>
+              )}
+            />
+          ) : (
+            <Text style={{ color: COLORS.textSecondary }}>No recent uploads</Text>
+          )}
+        </View>
+
+  <TouchableOpacity onPress={handleLogout} style={[styles.logoutButton, { marginTop: 18 }]}>
+          <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+          <Text style={styles.logoutText}>Log out</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   )
 }

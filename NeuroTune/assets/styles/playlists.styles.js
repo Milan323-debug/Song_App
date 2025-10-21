@@ -10,7 +10,8 @@ export default StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 14,
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     marginBottom: 14,
     alignItems: 'center',
     shadowColor: '#000',
@@ -29,6 +30,13 @@ export default StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 10,
+  },
+  // smaller artwork for inline song rows (playlist detail, liked songs)
+  songArtwork: {
+    width: 56,
+    height: 56,
+    borderRadius: 6,
+    backgroundColor: COLORS.cardBackground,
   },
   cardRight: {
     flex: 1,
@@ -206,7 +214,7 @@ export default StyleSheet.create({
     overflow: 'hidden',
     marginRight: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)'
+    borderColor: 'rgba(31, 61, 63, 1)'
   },
   avatarImg: { width: 40, height: 40 },
   titleLarge: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '800' },

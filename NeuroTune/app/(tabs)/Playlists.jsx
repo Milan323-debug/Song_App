@@ -13,7 +13,8 @@ import { BlurView } from 'expo-blur';
 export default function Playlists() {
   const [playlists, setPlaylists] = useState([]);
   const [pinnedIds, setPinnedIds] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
@@ -23,6 +24,25 @@ export default function Playlists() {
   const [searchQuery, setSearchQuery] = useState('');
   const anim = useRef(new Animated.Value(0)).current; // 0 closed, 1 open
   const inputRef = useRef(null);
+  const pulse = useRef(new Animated.Value(0.85)).current;
+
+  // start pulsing while loading
+  React.useEffect(() => {
+    let loop
+    if (loading) {
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 0.85, duration: 700, useNativeDriver: true }),
+        ])
+      )
+      loop.start()
+    } else {
+      // ensure visible when not loading
+      Animated.timing(pulse, { toValue: 1, duration: 120, useNativeDriver: true }).start()
+    }
+    return () => { loop && loop.stop && loop.stop() }
+  }, [loading])
 
   useEffect(() => {
     fetchPlaylists();
@@ -111,13 +131,17 @@ export default function Playlists() {
         if (token) {
           const lr = await fetch(`${API_URL}api/user/liked`, { headers: { Authorization: `Bearer ${token}` } });
           const lj = await lr.json();
-          const likedCount = Array.isArray(lj) ? lj.length : (lj?.length || 0);
+          // backend returns { songs: [] } — be tolerant of different shapes
+          const songsArray = Array.isArray(lj) ? lj : (Array.isArray(lj?.songs) ? lj.songs : []);
+          const likedCount = songsArray.length || 0;
           const likedPseudo = {
             _id: 'liked',
             title: 'Liked Songs',
             description: `${likedCount} tracks`,
             user: user || {},
-            _isSynthetic: true
+            _isSynthetic: true,
+            // include songs so the UI can use artwork from the first liked track
+            songs: songsArray
           };
           // inject only if not already present
           if (!list.find(p => String(p._id) === 'liked')) list = [likedPseudo, ...list];
@@ -135,6 +159,8 @@ export default function Playlists() {
       }
 
       setPlaylists(list);
+      // mark that we have loaded playlists at least once so subsequent refreshes use pull-to-refresh UI
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error("fetchPlaylists error", error);
     } finally {
@@ -232,7 +258,7 @@ export default function Playlists() {
             style={{
               padding: 8,
               marginLeft: 'auto',
-              marginRight: -8
+              marginRight: 0
             }}
           >
             <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textSecondary} />
@@ -242,11 +268,41 @@ export default function Playlists() {
     );
   };
 
-  if (loading) {
+  if ((loading && !hasLoadedOnce) ) {
+    // Skeleton: show header and several placeholder playlist cards
+    const skeletons = Array.from({ length: 6 })
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
+      <Animated.View style={[styles.container, { paddingTop: 8, opacity: pulse }]}> 
+        <View style={styles.libraryHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={[styles.avatar, { backgroundColor: COLORS.cardBackground }]}>
+              <View style={[styles.avatarImg, { backgroundColor: COLORS.black, borderRadius: 20 }]} />
+            </View>
+            <View style={{ marginLeft: 12 }}>
+              <View style={{ width: 160, height: 20, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+              <View style={{ width: 120, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 8 }} />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.pillRow}>
+          <View style={{ width: 110, height: 36, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.03)', marginRight: 8 }} />
+          <View style={{ width: 90, height: 36, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.03)', marginRight: 8 }} />
+          <View style={{ width: 90, height: 36, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.03)' }} />
+        </View>
+
+        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+          {skeletons.map((_, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <View style={{ width: '60%', height: 16, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+                <View style={{ width: '40%', height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 8 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
     );
   }
 
@@ -256,7 +312,7 @@ export default function Playlists() {
       <View style={styles.libraryHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={styles.avatar}>
-            <Image source={{ uri: user?.profileImage || user?.avatar || 'https://i.pravatar.cc/100' }} style={styles.avatarImg} />
+            <Image source={{ uri: user?.profileImage  }} style={styles.avatarImg} />
           </View>
           <Text style={styles.titleLarge}>Your Library</Text>
         </View>
@@ -331,8 +387,8 @@ export default function Playlists() {
         <TouchableOpacity style={[styles.pill, styles.pillActive]} onPress={() => {}}>
           <Text style={[styles.pillText, styles.pillTextActive]}>Playlists</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.pill} onPress={() => Alert.alert('Not implemented', 'Podcasts view')}>
-          <Text style={styles.pillText}>Podcasts</Text>
+        <TouchableOpacity style={styles.pill} onPress={() => router.push('/Playlists/UserSongs')}>
+          <Text style={styles.pillText}>Your Songs</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.pill} onPress={() => Alert.alert('Not implemented', 'Albums view')}>
           <Text style={styles.pillText}>Albums</Text>
@@ -437,8 +493,9 @@ export default function Playlists() {
             data={filteredPlaylists}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 16, paddingTop: 6 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 6, paddingBottom: 140 }}
             ListHeaderComponent={null}
+            ListFooterComponent={() => <View style={{ height: 120 }} />}
             extraData={searchQuery}
         refreshing={refreshing}
         onRefresh={onRefresh}

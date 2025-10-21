@@ -47,6 +47,7 @@ export default function LikedSongs() {
   const [searchText, setSearchText] = useState('')
   const [activeTab, setActiveTab] = useState('Songs')
   const { token } = useAuthStore()
+  const authUser = useAuthStore((s) => s.user)
   const playTrack = usePlayerStore((s) => s.playTrack)
   const current = usePlayerStore((s) => s.current)
   const playerIsPlaying = usePlayerStore((s) => s.isPlaying)
@@ -353,14 +354,39 @@ export default function LikedSongs() {
   // seam mode should remain hidden (we don't introduce a separate mode button in the seam)
   const seamModeAnimatedStyle = useAnimatedStyle(() => ({ opacity: 0 }))
 
-  if (loading) return <View style={[styles.container, { justifyContent: 'center' }]}><ActivityIndicator color={COLORS.primary} /></View>
+  if (loading) return (
+    <GradientBackground variant="teal" bottomDark={true}>
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: 8 }]}> 
+        <View style={[styles.header, { height: 160, paddingTop: 24 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.04)', marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <View style={{ width: 180, height: 18, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+              <View style={{ width: 120, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 6 }} />
+            </View>
+          </View>
+        </View>
+        <View style={{ paddingTop: 24, paddingHorizontal: 16 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <View style={{ width: '60%', height: 16, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+                <View style={{ width: '40%', height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 8 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </GradientBackground>
+  )
 
   return (
     <GradientBackground variant="teal" bottomDark={true}>
       <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
         {/* header overlay - positioned absolute so list scrolls under it */}
         <Reanimated.View style={[styles.header, headerStyle]} >
-          <AnimatedImage source={require('../../assets/images/heart.png')} style={[styles.headerImage, headerImageStyle]} />
+          <AnimatedImage source={require('../../assets/images/heart5.png')} style={[styles.headerImage, headerImageStyle]} />
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerSubtitle}>Your favorites in one place</Text>
             <AnimatedText style={[styles.headerTitle, titleAnimatedStyle]}>Liked Songs</AnimatedText>
@@ -403,6 +429,7 @@ export default function LikedSongs() {
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={{ paddingTop: HEADER_MAX + 24, paddingBottom: 140 }}
+          ListFooterComponent={() => <View style={{ height: 120 }} />}
           onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
@@ -539,6 +566,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
     borderWidth: 1,
     borderColor: COLORS.primary + '33',
+  },
+  headerAvatarButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)'
+  },
+  headerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.cardBackground,
   },
   headerTextWrap: {
     flex: 1,
