@@ -1,5 +1,6 @@
 // Styles used by components/PlayerContainer.jsx
 import COLORS from '../../constants/colors'
+import { DEFAULT_ARTWORK_BG } from '../../constants/artwork'
 
 const styles = {
   // cover the full screen so the expanded player can occupy the entire viewport
@@ -13,10 +14,10 @@ const styles = {
     borderBottomLeftRadius: 10,
     borderBottomRightRadius: 10,
     // slightly darker than screen for contrast
-    backgroundColor: 'rgba(6, 12, 20, 0.85)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minHeight: 58,
+    backgroundColor: 'rgba(1, 66, 77, 0.85)',
+  paddingVertical: 10,
+  paddingHorizontal: 12,
+  minHeight: 4,
     alignItems: 'center',
     // subtle shadow for elevation
     shadowColor: '#000',
@@ -26,16 +27,20 @@ const styles = {
     elevation: 10,
   },
   miniInner: { flexDirection: 'row', alignItems: 'center' },
-  miniArtPlaceholder: { width: 52, height: 52, borderRadius: 6, backgroundColor: COLORS.cardBackground, marginRight: 12 },
+  // smaller artwork so the bar can be thicker while remaining compact like Spotify
+  miniArtPlaceholder: { width: 40, height: 40, borderRadius: 6, backgroundColor: DEFAULT_ARTWORK_BG, marginRight: 12 },
   miniInfo: { flex: 1, justifyContent: 'center' },
   title: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700' },
   artist: { color: COLORS.textSecondary, fontSize: 12 },
-  miniPlayBtnSmall: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
-  modeBtnSmall: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
+  // slightly smaller touch targets to keep the bar compact
+  // visually transparent button so only the play/pause icon is visible (like Spotify)
+  // keep size for a comfortable touch target but remove the circular background
+  miniPlayBtnSmall: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  modeBtnSmall: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
 
-  // bottom progress strip (previously topProgress) — flush to container bottom
-  topProgress: { height: 3, backgroundColor: 'rgba(255,255,255,0.06)', position: 'absolute', left: 12, right: 12, bottom: 0, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, overflow: 'hidden' },
-  topProgressFill: { height: 3, backgroundColor: COLORS.primary, borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
+  // bottom progress strip (previously topProgress) — flush to container bottom (thinner)
+  topProgress: { height: 2, backgroundColor: 'rgba(255,255,255,0.06)', position: 'absolute', left: 12, right: 12, bottom: 0, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, overflow: 'hidden' },
+  topProgressFill: { height: 2, backgroundColor: COLORS.primary, borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
 
   fullContainer: {
     position: 'absolute',
@@ -50,7 +55,7 @@ const styles = {
   fullHeader: { height: 56, alignItems: 'flex-end', padding: 12 },
   // give slightly larger horizontal padding so the artwork and controls have breathing room
   fullContent: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 12, paddingHorizontal: 24 },
-  fullArtPlaceholder: { width: 320, height: 320, borderRadius: 16, backgroundColor: COLORS.cardBackground, shadowColor: COLORS.neonAqua, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 30, elevation: 16 },
+  fullArtPlaceholder: { width: 320, height: 320, borderRadius: 16, backgroundColor: DEFAULT_ARTWORK_BG, shadowColor: COLORS.neonAqua, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 30, elevation: 16 },
   artWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   dragHandleWrap: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
   dragHandle: { width: 48, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)' },
@@ -87,26 +92,26 @@ progressBarWrap: {
   marginHorizontal: 6,
 },
 
-// track background
+// track background (thinner)
 progressBarBg: {
-  height: 6,
+  height: 3,
   backgroundColor: 'rgba(195, 197, 198, 0.57)',
   borderRadius: 999,
   overflow: 'hidden',
 },
 
-// filled portion (played)
+// filled portion (played) (thinner)
 progressBarFill: {
   position: 'absolute',
   left: 0,
-  height: 6,
+  height: 3,
   borderRadius: 999,
   backgroundColor: COLORS.primary,
   shadowColor: COLORS.neonAqua,
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.2,
-  shadowRadius: 6,
-  elevation: 4,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.18,
+  shadowRadius: 4,
+  elevation: 3,
 },
 
 // thumb sits perfectly centered vertically
@@ -121,28 +126,28 @@ progressThumbContainer: {
   zIndex: 2,
 },
 
-// outer ring with glow
+// outer ring with glow (smaller)
 progressThumb: {
-  width: 16,
-  height: 16,
-  borderRadius: 8,
+  width: 12,
+  height: 12,
+  borderRadius: 6,
   backgroundColor: COLORS.background,
   borderWidth: 2,
   borderColor: COLORS.primary,
   alignItems: 'center',
   justifyContent: 'center',
   shadowColor: COLORS.neonAqua,
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.25,
-  shadowRadius: 8,
-  elevation: 6,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.22,
+  shadowRadius: 6,
+  elevation: 4,
 },
 
-// inner dot for depth
+// inner dot for depth (smaller)
 progressThumbInner: {
-  width: 6,
-  height: 6,
-  borderRadius: 3,
+  width: 4,
+  height: 4,
+  borderRadius: 2,
   backgroundColor: COLORS.primary,
 },
 // --- END FIXED PROGRESS STYLES ---
@@ -159,7 +164,7 @@ progressThumbInner: {
   upNextItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
   upNextIndex: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.03)', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
   upNextIndexText: { color: COLORS.textSecondary, fontSize: 12 },
-  upNextArt: { width: 44, height: 44, borderRadius: 6, backgroundColor: COLORS.cardBackground },
+  upNextArt: { width: 44, height: 44, borderRadius: 6, backgroundColor: DEFAULT_ARTWORK_BG },
   upNextTitleText: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '600' },
   upNextArtistText: { color: COLORS.textSecondary, fontSize: 12 },
   // duration pill shifted slightly left and styled

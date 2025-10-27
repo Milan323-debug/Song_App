@@ -9,6 +9,7 @@ import styles from "../../assets/styles/playlists.styles";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
 import { BlurView } from 'expo-blur';
+import { DEFAULT_ARTWORK_BG, DEFAULT_PROFILE_IMAGE } from '../../constants/artwork'
 
 export default function Playlists() {
   const [playlists, setPlaylists] = useState([]);
@@ -241,7 +242,7 @@ export default function Playlists() {
           ) : fallbackSongArtwork ? (
             <Image source={{ uri: typeof fallbackSongArtwork === 'string' ? fallbackSongArtwork : fallbackSongArtwork.url }} style={styles.artwork} />
           ) : (
-            <View style={[styles.artwork, { backgroundColor: COLORS.cardBackground }]} />
+            <View style={[styles.artwork, { backgroundColor: DEFAULT_ARTWORK_BG }]} />
           )}
         </View>
         <View style={styles.cardRight}>
@@ -312,7 +313,7 @@ export default function Playlists() {
       <View style={styles.libraryHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={styles.avatar}>
-            <Image source={{ uri: user?.profileImage  }} style={styles.avatarImg} />
+            <Image source={(user?.profileImage) ? { uri: user?.profileImage } : DEFAULT_PROFILE_IMAGE} style={styles.avatarImg} />
           </View>
           <Text style={styles.titleLarge}>Your Library</Text>
         </View>

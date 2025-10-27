@@ -28,7 +28,8 @@ const userSchema = new mongoose.Schema(
     },
     profileImage: {
       type: String,
-      default: "https://as2.ftcdn.net/v2/jpg/05/89/93/27/1000_F_589932782_vQAEAZhHnq1QCGu5ikwrYaQD0Mmurm0N.jpg",
+      // default placeholder for new users
+      default: "https://knownconference.com/wp-content/uploads/2020/10/Profile-Placeholder-01-600x600.jpg",
     },
     bannerImage: {
       type: String,

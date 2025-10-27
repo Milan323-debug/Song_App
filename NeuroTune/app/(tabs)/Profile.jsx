@@ -9,6 +9,7 @@ import COLORS from '../../constants/colors'
 import styles from '../../assets/styles/profile.styles'
 import { useAuthStore } from '../../store/authStore'
 import { API_URL, API } from '../../constants/api'
+import { DEFAULT_ARTWORK_URL, DEFAULT_PROFILE_IMAGE } from '../../constants/artwork'
 
 export default function Profile() {
   const { logout, token, user } = useAuthStore()
@@ -182,13 +183,6 @@ export default function Profile() {
 
   // (no glow animation) static avatar wrapper
 
-  const handleLogout = () => {
-    Alert.alert('Log out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: () => logout() },
-    ])
-  }
-
   if (loading && !userData) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -227,7 +221,7 @@ export default function Profile() {
           <View style={styles.headerLeft}>
             <View style={styles.profileImageWrap}>
               <Image 
-                source={{ uri: userData?.profileImage || user?.profileImage }} 
+                source={(userData?.profileImage || user?.profileImage) ? { uri: userData?.profileImage || user?.profileImage } : DEFAULT_PROFILE_IMAGE } 
                 style={styles.profileImage}
               />
 
@@ -311,9 +305,9 @@ export default function Profile() {
               renderItem={({ item, index }) => (
                 <Reanimated.View entering={FadeIn.delay(index * 80).duration(400)} style={{ marginRight: 12 }}>
                   <TouchableOpacity activeOpacity={0.9} onPress={() => router.push(`/Songs/${item._id}`)}>
-                    <View style={styles.recentCard}>
-                      <Image source={{ uri: item.artworkUrl || 'https://img.icons8.com/?size=100&id=99264&format=png&color=000000' }} style={{ width: '100%', height: '100%' }} />
-                    </View>
+                        <View style={styles.recentCard}>
+                          <Image source={{ uri: item.artworkUrl || DEFAULT_ARTWORK_URL }} style={{ width: '100%', height: '100%' }} />
+                        </View>
                     <Text numberOfLines={1} style={{ color: COLORS.textPrimary, marginTop: 8, width: 120 }}>{item.title}</Text>
                     <Text numberOfLines={1} style={{ color: COLORS.textSecondary, fontSize: 12, width: 120 }}>{item.artist || ''}</Text>
                   </TouchableOpacity>
@@ -321,7 +315,9 @@ export default function Profile() {
               )}
             />
           ) : (
-            <Text style={{ color: COLORS.textSecondary, marginTop: 8, width: 120, textAlign: 'center' }}>No recent uploads</Text>
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={{ color: COLORS.textSecondary }}>No recent uploads</Text>
+              </View>
           )}
         </View>
       </View>

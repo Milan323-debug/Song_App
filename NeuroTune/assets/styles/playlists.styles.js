@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import COLORS from "../../constants/colors";
+import { DEFAULT_ARTWORK_BG } from '../../constants/artwork'
 
 export default StyleSheet.create({
   container: {
@@ -36,7 +37,7 @@ export default StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 6,
-    backgroundColor: COLORS.cardBackground,
+    backgroundColor: DEFAULT_ARTWORK_BG,
   },
   cardRight: {
     flex: 1,
@@ -77,7 +78,7 @@ export default StyleSheet.create({
     height: 120,
     borderRadius: 6,
     marginRight: 12,
-    backgroundColor: '#111',
+    backgroundColor: DEFAULT_ARTWORK_BG,
     borderWidth: 1,
     borderColor: COLORS.primary + '33',
   },

@@ -29,6 +29,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { API } from '../../constants/api'
 import AddCircleButton from '../../components/AddCircleButton'
+import { DEFAULT_ARTWORK_URL, DEFAULT_ARTWORK_BG, DEFAULT_PROFILE_IMAGE } from '../../constants/artwork'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 const H_PAD = 14
@@ -63,7 +64,7 @@ const SmallRowCard = React.memo(({ item, onPress, onLongPress }) => (
     accessibilityRole="button"
     accessibilityLabel={`${item.title} by ${item.subtitle}`}
   >
-    <View style={styles.thumbWrap}><Image source={{ uri: item.image || 'https://picsum.photos/seed/placeholder/200/200' }} style={styles.thumb} /></View>
+  <View style={styles.thumbWrap}><Image source={{ uri: item.image || DEFAULT_ARTWORK_URL }} style={styles.thumb} /></View>
     <View style={styles.rowMeta}>
       <Text numberOfLines={1} style={styles.rowTitle}>{item.title}</Text>
       <Text numberOfLines={1} style={styles.rowSub}>{item.subtitle}</Text>
@@ -73,7 +74,7 @@ const SmallRowCard = React.memo(({ item, onPress, onLongPress }) => (
 
 const HeroCard = React.memo(({ item, onPress }) => (
   <TouchableOpacity style={styles.heroCard} onPress={() => onPress(item)} activeOpacity={0.92} accessibilityRole="button">
-    <Image source={{ uri: item.image || 'https://img.icons8.com/?size=100&id=99264&format=png&color=000000' }} style={styles.heroImg} />
+  <Image source={{ uri: item.image || DEFAULT_ARTWORK_URL }} style={styles.heroImg} />
     <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)']} style={styles.heroOverlay} />
     <View style={styles.heroLabel}>
       <Text numberOfLines={1} style={styles.heroTitle}>{item.title}</Text>
@@ -149,6 +150,7 @@ export default function Home() {
   const [likedSet, setLikedSet] = useState(new Set())
   const [playlistModalVisibleHome, setPlaylistModalVisibleHome] = useState(false)
   const [homePlaylists, setHomePlaylists] = useState([])
+  const [homePlaylistsLoading, setHomePlaylistsLoading] = useState(false)
   const [selectedSongForPlaylist, setSelectedSongForPlaylist] = useState(null)
   const [songMenuVisibleHome, setSongMenuVisibleHome] = useState(false)
   const [selectedSongForMenu, setSelectedSongForMenu] = useState(null)
@@ -363,20 +365,30 @@ export default function Home() {
 
   const fetchHomePlaylists = useCallback(async () => {
     if (!token) return
+    setHomePlaylistsLoading(true)
     try {
       const res = await fetch(API('api/playlists/mine'), { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) return
       const j = await res.json()
       const list = Array.isArray(j.playlists) ? j.playlists : []
       setHomePlaylists(list)
-    } catch (e) { console.warn('fetchHomePlaylists', e) }
+    } catch (e) { console.warn('fetchHomePlaylists', e) } finally {
+      setHomePlaylistsLoading(false)
+    }
   }, [token])
 
-  const openAddToPlaylistFromHome = async (song) => {
+  // Open playlist modal and lazily fetch user's playlists only when modal is shown
+  const openAddToPlaylistFromHome = (song) => {
     setSelectedSongForPlaylist(song)
-    await fetchHomePlaylists()
     setPlaylistModalVisibleHome(true)
   }
+
+  // When the playlist modal becomes visible, fetch playlists if we don't have them yet
+  useEffect(() => {
+    if (playlistModalVisibleHome && (!homePlaylists || homePlaylists.length === 0) && token) {
+      fetchHomePlaylists()
+    }
+  }, [playlistModalVisibleHome, homePlaylists.length, token, fetchHomePlaylists])
 
   const openSongMenuHome = async (song) => {
     setSelectedSongForMenu(song)
@@ -453,7 +465,13 @@ export default function Home() {
     try {
       const raw = await AsyncStorage.getItem(RECENTS_KEY)
       const parsed = raw ? JSON.parse(raw) : []
-      setRecents(Array.isArray(parsed) ? parsed.slice(0, 8) : [])
+      // Defensive: only accept recent entries that are objects and contain an id or title
+      const valid = Array.isArray(parsed)
+        ? parsed
+            .filter((it) => it && typeof it === 'object' && (it.id || it._id || it.title))
+            .map((it) => ({ id: it.id || it._id || it.title, title: it.title || it.name || it.id, image: it.image || it.artworkUrl || null, subtitle: it.subtitle || '' }))
+        : []
+      setRecents(valid.slice(0, 8))
     } catch (e) {
       setRecents([])
     }
@@ -500,7 +518,12 @@ export default function Home() {
       // use up to first 6 grid items as featured (previous behavior) so hero rail shows multiple cards
       const grid = mapped
       const weekday = new Date().toLocaleString('en-US', { weekday: 'long' })
-      const featuredItems = grid.slice(0, 6).map((g, i) => ({ id: `h${i}`, title: i === 0 ? `New Music ${weekday}` : g.title, subtitle: g.subtitle, image: g.image }))
+      // Keep original playlist id and raw data so hero taps navigate correctly to the playlist
+      const featuredItems = grid.slice(0, 6).map((g, i) => ({
+        ...g,
+        id: g.id || `h${i}`,
+        title: i === 0 ? `New Music ${weekday}` : g.title,
+      }))
 
       // if nothing found, fall back to placeholders
       setGridItems(grid.length ? grid : Array.from({ length: 8 }).map((_, i) => ({ id: `g${i}`, title: `Playlist ${i+1}`, subtitle: `Curator ${i+1}`, image: `https://picsum.photos/seed/album${i}/300/300` })))
@@ -598,7 +621,7 @@ export default function Home() {
             <Animated.View style={[styles.header, { opacity: headerOpacity, transform: [{ scale: headerTitleScale }] }]}>
               <View style={styles.headerLeft}>
                 <TouchableOpacity onPress={() => router.push('/Profile')} style={styles.avatarWrap}>
-                  <Image source={{ uri: authUser?.profileImage || authUser?.avatar }} style={styles.avatar} />
+                  <Image source={ (authUser?.profileImage || authUser?.avatar) ? { uri: authUser?.profileImage || authUser?.avatar } : DEFAULT_PROFILE_IMAGE } style={styles.avatar} />
                 </TouchableOpacity>
                 <View style={styles.chipsRow}>
                   <Pill label="All" active={tab === 'All'} onPress={() => setTab('All')} />
@@ -673,7 +696,7 @@ export default function Home() {
                   keyExtractor={(i) => i.id}
                   renderItem={({ item }) => (
                     <TouchableOpacity style={styles.recentItem} onPress={() => onPressSmall(item)}>
-                      <View style={styles.recentArtwork}><Image source={{ uri: item.image || `https://img.icons8.com/?size=100&id=99264&format=png&color=000000` }} style={styles.recentImage} /></View>
+                      <View style={styles.recentArtwork}><Image source={{ uri: item.image || DEFAULT_ARTWORK_URL }} style={styles.recentImage} /></View>
                       <Text numberOfLines={1} style={styles.recentTitle}>{item.title}</Text>
                     </TouchableOpacity>
                   )}
@@ -697,7 +720,7 @@ export default function Home() {
               accessibilityRole="button"
               accessibilityLabel={`${item.title} by ${item.subtitle}`}
             >
-              <Image source={{ uri: item.image || 'hhttps://img.icons8.com/?size=100&id=99264&format=png&color=000000' }} style={styles.cardSmallImg} />
+              <Image source={{ uri: item.image || DEFAULT_ARTWORK_URL }} style={styles.cardSmallImg} />
               <Text numberOfLines={1} style={styles.cardSmallTitle}>{item.title}</Text>
             </TouchableOpacity>
             {mainGridItems[index + 1] ? (
@@ -709,7 +732,7 @@ export default function Home() {
                 accessibilityRole="button"
                 accessibilityLabel={`${mainGridItems[index + 1].title} by ${mainGridItems[index + 1].subtitle}`}
               >
-                <Image source={{ uri: mainGridItems[index + 1].image || 'https://img.icons8.com/?size=100&id=99264&format=png&color=000000' }} style={styles.cardSmallImg} />
+                <Image source={{ uri: mainGridItems[index + 1].image || DEFAULT_ARTWORK_URL }} style={styles.cardSmallImg} />
                 <Text numberOfLines={1} style={styles.cardSmallTitle}>{mainGridItems[index + 1].title}</Text>
               </TouchableOpacity>
             ) : <View style={{ width: TWO_COL_W }} />}
@@ -833,7 +856,7 @@ export default function Home() {
                             accessibilityRole="button"
                             accessibilityLabel={`Song ${item.title || item.name}`}
                           >
-                            <Image source={{ uri: item.artworkUrl || item.image || item.cover || 'https://img.icons8.com/?size=100&id=99264&format=png&color=000000' }} style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: 'rgba(0, 81, 92, 0.91)' }} />
+                            <Image source={{ uri: item.artworkUrl || item.image || item.cover || DEFAULT_ARTWORK_URL }} style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: DEFAULT_ARTWORK_BG }} />
                             <View style={{ flex: 1, marginLeft: 12 }}>
                               <Text numberOfLines={1} style={styles.resultRowTitle}>{item.title || item.name}</Text>
                               <Text numberOfLines={1} style={styles.resultRowSub}>{item.artist || item.subtitle || ''}</Text>
@@ -873,7 +896,7 @@ export default function Home() {
                           accessibilityRole="button"
                           accessibilityLabel={`Song ${item.title}`}
                         >
-                          <Image source={{ uri: item.artworkUrl || item.image || item.cover || 'https://picsum.photos/seed/song/200/200' }} style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.02)' }} />
+                          <Image source={{ uri: item.artworkUrl || item.image || item.cover || DEFAULT_ARTWORK_URL }} style={{ width: 56, height: 56, borderRadius: 6, backgroundColor: DEFAULT_ARTWORK_BG }} />
                           <View style={{ flex: 1, marginLeft: 12 }}>
                             <Text numberOfLines={1} style={styles.resultRowTitle}>{item.title || item.name}</Text>
                             <Text numberOfLines={1} style={styles.resultRowSub}>{item.artist || item.subtitle || ''}</Text>
@@ -960,16 +983,24 @@ export default function Home() {
             <TouchableWithoutFeedback>
               <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '60%' }}>
                 <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Select Playlist</Text>
-                <FlatList
-                  data={homePlaylists}
-                  keyExtractor={(p) => String(p._id || p.id)}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => handleAddToPlaylistHome(item._id || item.id)}>
-                      <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title || item.name}</Text>
-                      <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
-                    </TouchableOpacity>
-                  )}
-                />
+                {homePlaylistsLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 12 }} />
+                ) : (homePlaylists && homePlaylists.length ? (
+                  <FlatList
+                    data={homePlaylists}
+                    keyExtractor={(p) => String(p._id || p.id)}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => handleAddToPlaylistHome(item._id || item.id)}>
+                        <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title || item.name}</Text>
+                        <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                ) : (
+                  <View style={{ paddingVertical: 12 }}>
+                    <Text style={{ color: COLORS.textSecondary }}>You don't have any playlists yet.</Text>
+                  </View>
+                ))}
                 <TouchableOpacity style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }} onPress={() => setPlaylistModalVisibleHome(false)}>
                   <Text style={{ color: COLORS.textSecondary }}>Cancel</Text>
                 </TouchableOpacity>
@@ -1045,7 +1076,7 @@ const styles = StyleSheet.create({
   },
   // reduce vertical height (keep horizontal width intact)
   // reduce vertical height more to make cards shorter while preserving width
-  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.68), borderRadius: 10, resizeMode: 'cover', backgroundColor: 'rgba(255,255,255,0.02)' },
+  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.62), borderRadius: 10, resizeMode: 'cover', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
   cardSmallTitle: { color: COLORS.textPrimary, fontWeight: '700', marginTop: 6, fontSize: 13 },
 
   miniContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, pointerEvents: 'box-none' },
@@ -1091,5 +1122,7 @@ const styles = StyleSheet.create({
   resultRowSub: { color: COLORS.textSecondary, marginTop: 2, fontSize: 12 },
 
   // tighten up the main grid cards so everything feels compact and balanced
-  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.62), borderRadius: 10, resizeMode: 'cover', backgroundColor: 'rgba(255,255,255,0.02)' },
+  thumb: { width: '100%', height: '100%', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
+  recentImage: { width: '100%', height: '100%', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
+  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.62), borderRadius: 10, resizeMode: 'cover', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
 })

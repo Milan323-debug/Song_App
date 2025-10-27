@@ -26,6 +26,7 @@ import GradientBackground from '../../components/GradientBackground'
 import { useAuthStore } from '../../store/authStore'
 import Reanimated, { useSharedValue, useAnimatedStyle, useAnimatedScrollHandler, interpolate, Extrapolate } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
+import { DEFAULT_ARTWORK_URL } from '../../constants/artwork'
 const AnimatedImage = Reanimated.createAnimatedComponent(Image)
 const AnimatedFlatList = Reanimated.createAnimatedComponent(FlatList)
 const AnimatedText = Reanimated.createAnimatedComponent(Text)
@@ -172,7 +173,7 @@ export default function LikedSongs() {
     const isPlaying = current && current._id === item._id
     return (
       <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
-        <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover }} style={[styles.artwork, isPlaying && styles.playingArtwork]} />
+  <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover || DEFAULT_ARTWORK_URL }} style={[styles.artwork, isPlaying && styles.playingArtwork]} />
         <View style={styles.itemText}>
           <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
           <Text numberOfLines={1} style={styles.subtitle}>{item.artist || item.artists?.join(', ') || ''}</Text>

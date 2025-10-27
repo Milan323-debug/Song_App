@@ -53,8 +53,8 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        //Get random avatar (application default) and allow client override
-        const randomAvatar = `https://api.dicebear.com/9.x/open-peeps/svg`;
+    // Application default profile image for new users (client may override)
+    const randomAvatar = 'https://knownconference.com/wp-content/uploads/2020/10/Profile-Placeholder-01-600x600.jpg';
 
         // Create new user (use provided profileImage if present, otherwise default)
         const user = new User({

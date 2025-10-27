@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { API_URL } from '../../constants/api';
 import styles from '../../assets/styles/playlists.styles';
+import { DEFAULT_ARTWORK_URL } from '../../constants/artwork'
 import COLORS from '../../constants/colors';
 import { useRouter } from 'expo-router';
 import usePlayerStore from '../../store/playerStore';
@@ -21,6 +22,7 @@ export default function UserSongs() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const searchAnim = useRef(new Animated.Value(0)).current
+  const emptyAnim = useRef(new Animated.Value(0)).current
   const router = useRouter();
   const playTrack = usePlayerStore(s => s.playTrack)
   const togglePlay = usePlayerStore(s => s.togglePlay)
@@ -71,6 +73,12 @@ export default function UserSongs() {
   useEffect(() => {
     Animated.timing(searchAnim, { toValue: searchFocused ? 1 : 0, duration: 200, useNativeDriver: true }).start()
   }, [searchFocused])
+
+  // animate empty state when there are no songs
+  useEffect(() => {
+    const isEmpty = (filteredSongs || []).length === 0
+    Animated.timing(emptyAnim, { toValue: isEmpty ? 1 : 0, duration: 350, useNativeDriver: true }).start()
+  }, [filteredSongs, emptyAnim])
 
   const openSongMenu = (song) => {
     setSelectedSong(song);
@@ -244,11 +252,7 @@ export default function UserSongs() {
             } catch (e) { console.warn('play from UserSongs failed', e) }
           }} style={styles.item} onLongPress={() => openSongMenu(item)}>
             <View>
-              {item.artworkUrl || item.artwork ? (
-                <Image source={{ uri: item.artworkUrl || item.artwork }} style={styles.songArtwork} />
-              ) : (
-                <View style={styles.songArtwork} />
-              )}
+                <Image source={{ uri: item.artworkUrl || item.artwork || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
             </View>
             <View style={styles.itemText}>
               <Text style={[styles.title, { fontSize: 16 }]} numberOfLines={1}>{item.title}</Text>
@@ -264,9 +268,11 @@ export default function UserSongs() {
   contentContainerStyle={{ padding: 0, paddingTop: 6, paddingBottom: 40 }}
   ListFooterComponent={() => <View style={{ height: 24 }} />}
         ListEmptyComponent={() => (
-          <View style={{ padding: 24 }}>
-            <Text style={{ color: COLORS.textSecondary }}>You haven't uploaded any songs yet.</Text>
-          </View>
+          <Animated.View style={{ padding: 24, alignItems: 'center', opacity: emptyAnim, transform: [{ translateY: emptyAnim.interpolate ? emptyAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) : 0 }] }}>
+            <Ionicons name="musical-notes-outline" size={44} color={COLORS.textSecondary} style={{ marginBottom: 12 }} />
+            <Text style={{ color: COLORS.textSecondary, fontSize: 16, fontWeight: '600' }}>You haven't uploaded any songs yet.</Text>
+            <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 12, textAlign: 'center', maxWidth: 260 }}>Tap the + button on the home screen to upload your first track.</Text>
+          </Animated.View>
         )}
       />
 

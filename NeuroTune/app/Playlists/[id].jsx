@@ -27,6 +27,7 @@ import { useAuthStore } from '../../store/authStore'
 import Reanimated, { useSharedValue, useAnimatedStyle, useAnimatedScrollHandler, interpolate, Extrapolate } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import styles from '../../assets/styles/playlists.styles'
+import { DEFAULT_ARTWORK_URL } from '../../constants/artwork'
 import AddCircleButton from '../../components/AddCircleButton'
 
 const AnimatedImage = Reanimated.createAnimatedComponent(Image)
@@ -191,7 +192,7 @@ export default function PlaylistDetail() {
     const isLiked = likedSet.has(String(item._id))
     return (
       <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
-  <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover }} style={[styles.songArtwork, isPlaying && styles.playingArtwork]} />
+  <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover || DEFAULT_ARTWORK_URL }} style={[styles.songArtwork, isPlaying && styles.playingArtwork]} />
         <View style={styles.itemText}>
           <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
           <Text numberOfLines={1} style={styles.subtitle}>{item.artist || item.artists?.join(', ') || ''}</Text>
@@ -304,7 +305,7 @@ export default function PlaylistDetail() {
     <GradientBackground variant="teal" bottomDark={true}>
       <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
         <Reanimated.View style={[styles.header, headerStyle]} >
-          <AnimatedImage source={{ uri: playlist.imageUrl || playlist.poster || playlist.cover || playlist.songs[0]?.artworkUrl || playlist.songs[0]?.imageUrl }} style={[styles.headerImage, headerImageStyle]} />
+          <AnimatedImage source={{ uri: playlist.imageUrl || playlist.poster || playlist.cover || playlist.songs[0]?.artworkUrl || playlist.songs[0]?.imageUrl || DEFAULT_ARTWORK_URL }} style={[styles.headerImage, headerImageStyle]} />
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerSubtitle}>Playlist</Text>
             <AnimatedText style={[styles.headerTitle, titleAnimatedStyle]}>{playlist.title}</AnimatedText>

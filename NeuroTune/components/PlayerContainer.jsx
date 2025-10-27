@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import  COLORS  from '../constants/colors'
+import { DEFAULT_ARTWORK_URL } from '../constants/artwork'
 import styles from '../assets/styles/playerContainer.styles'
 import usePlayerStore from '../store/playerStore'
 import PlaybackModeButton from './PlaybackModeButton'
@@ -221,13 +222,9 @@ export default function PlayerContainer({ tabBarHeight }) {
         style={[styles.miniContainer, { bottom: baseBottom, opacity: miniOpacity }]}
       > 
         <TouchableOpacity activeOpacity={0.9} style={styles.miniInner} onPress={expand}>
-          {current.artworkUrl && String(current.artworkUrl).trim().length > 0 ? (
-            <Animated.View style={{ opacity: trackFade }}>
-              <Image source={{ uri: current.artworkUrl }} style={styles.miniArtPlaceholder} />
-            </Animated.View>
-          ) : (
-            <Animated.View style={[styles.miniArtPlaceholder, { opacity: trackFade }]} />
-          )}
+          <Animated.View style={{ opacity: trackFade }}>
+            <Image source={{ uri: (current.artworkUrl && String(current.artworkUrl).trim().length > 0) ? current.artworkUrl : DEFAULT_ARTWORK_URL }} style={styles.miniArtPlaceholder} />
+          </Animated.View>
 
           <View style={styles.miniInfo}>
             <Text style={styles.title} numberOfLines={1}>{current.title}</Text>
@@ -237,8 +234,8 @@ export default function PlayerContainer({ tabBarHeight }) {
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <PlaybackModeButton style={styles.modeBtnSmall} />
-            <TouchableOpacity onPress={() => (isPlaying ? pause() : resume())} style={styles.miniPlayBtnSmall}>
-              <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color={COLORS.background} />
+            <TouchableOpacity onPress={() => (isPlaying ? pause() : resume())} style={styles.miniPlayBtnSmall} accessibilityLabel={isPlaying ? 'Pause' : 'Play'}>
+              <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color={COLORS.white} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>

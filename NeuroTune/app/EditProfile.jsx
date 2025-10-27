@@ -16,6 +16,7 @@ import {
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
+import { DEFAULT_PROFILE_IMAGE } from '../constants/artwork'
 import COLORS from '../constants/colors'
 import { useAuthStore } from '../store/authStore'
 import { API_URL } from '../constants/api'
@@ -228,9 +229,7 @@ export default function EditProfile() {
               {profileImage ? (
                 <Image source={{ uri: profileImage }} style={styles.avatar} />
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={34} color="#fff" />
-                </View>
+                <Image source={DEFAULT_PROFILE_IMAGE} style={styles.avatar} />
               )}
 
               <TouchableOpacity style={styles.avatarEdit} onPress={() => pickImage(setProfileImage)} accessibilityLabel="Edit profile image">
