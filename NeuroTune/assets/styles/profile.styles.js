@@ -16,7 +16,7 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     width: '100%',
-    height: 150,
+    height: 120,
     backgroundColor: COLORS.cardBackground,
   },
   bannerImage: {
@@ -25,18 +25,18 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     paddingHorizontal: 12,
-    paddingBottom: 12,
-    paddingTop: 8,
+    paddingBottom: 10,
+    paddingTop: 0,
     backgroundColor: 'transparent'
   },
   profileImage: {
-    width: 88,
-    height: 88,
+    width: 100,
+    height: 100,
     borderRadius: 44,
     borderWidth: 3,
     borderColor: COLORS.background,
     backgroundColor: COLORS.cardBackground,
-    marginRight: 12,
+    marginRight: 1,
   },
   profileImageWrap: {
     width: 96,
@@ -45,12 +45,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -48,
-    marginRight: 12,
     shadowColor: COLORS.primary,
     shadowOpacity: 0.12,
     shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 34,
+    elevation: 67,
     position: 'relative'
   },
   editButton: {
@@ -197,7 +196,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   addButtonText: {
-    color: COLORS.white,
+    color: COLORS.black,
     fontWeight: '600',
     fontSize: 14,
   },

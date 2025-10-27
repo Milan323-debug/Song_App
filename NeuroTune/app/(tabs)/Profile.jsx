@@ -205,7 +205,7 @@ export default function Profile() {
       }
     >
       <LinearGradient
-        colors={["rgba(0,0,0,0.9)", "rgba(0, 47, 55, 0.6)"]}
+        colors={["rgba(30, 166, 197, 0.9)", "rgba(6, 59, 59, 0.6)"]}
         style={styles.profileHeader}
       >
         <View style={styles.bannerContainer}>
@@ -291,10 +291,10 @@ export default function Profile() {
     <View style={{ paddingHorizontal: 12 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
           <TouchableOpacity style={[styles.addButton, { flex: 1, marginRight: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={() => router.push('/EditProfile')}>
-            <Ionicons name="create-outline" size={16} color={COLORS.white} />
+            <Ionicons name="create-outline" size={16} color={COLORS.black} />
             <Text style={[styles.addButtonText, { marginLeft: 8 }]}>Edit Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.addButton, { backgroundColor: 'rgba(255,255,255,0.04)', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={() => router.push('/Settings')}>
+          <TouchableOpacity style={[styles.addButton, { backgroundColor: 'rgba(29, 30, 30, 1)', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={() => router.push('/Settings')}>
             <Ionicons name="settings-outline" size={16} color={COLORS.textPrimary} />
             <Text style={[styles.addButtonText, { color: COLORS.textPrimary, marginLeft: 8 }]}>Settings</Text>
           </TouchableOpacity>
@@ -312,7 +312,7 @@ export default function Profile() {
                 <Reanimated.View entering={FadeIn.delay(index * 80).duration(400)} style={{ marginRight: 12 }}>
                   <TouchableOpacity activeOpacity={0.9} onPress={() => router.push(`/Songs/${item._id}`)}>
                     <View style={styles.recentCard}>
-                      <Image source={{ uri: item.artworkUrl || item.artwork || `https://picsum.photos/seed/${item._id}/300/300` }} style={{ width: '100%', height: '100%' }} />
+                      <Image source={{ uri: item.artworkUrl || 'https://img.icons8.com/?size=100&id=99264&format=png&color=000000' }} style={{ width: '100%', height: '100%' }} />
                     </View>
                     <Text numberOfLines={1} style={{ color: COLORS.textPrimary, marginTop: 8, width: 120 }}>{item.title}</Text>
                     <Text numberOfLines={1} style={{ color: COLORS.textSecondary, fontSize: 12, width: 120 }}>{item.artist || ''}</Text>
@@ -321,14 +321,9 @@ export default function Profile() {
               )}
             />
           ) : (
-            <Text style={{ color: COLORS.textSecondary }}>No recent uploads</Text>
+            <Text style={{ color: COLORS.textSecondary, marginTop: 8, width: 120, textAlign: 'center' }}>No recent uploads</Text>
           )}
         </View>
-
-  <TouchableOpacity onPress={handleLogout} style={[styles.logoutButton, { marginTop: 18 }]}>
-          <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
   )

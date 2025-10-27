@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, ActivityIndicator, Image, TouchableOpacity, Alert, Modal, TouchableWithoutFeedback } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, FlatList, ActivityIndicator, Image, TouchableOpacity, Alert, Modal, TouchableWithoutFeedback, TextInput, Animated, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { API_URL } from '../../constants/api';
 import styles from '../../assets/styles/playlists.styles';
 import COLORS from '../../constants/colors';
 import { useRouter } from 'expo-router';
+import usePlayerStore from '../../store/playerStore';
+import AddCircleButton from '../../components/AddCircleButton';
 
 export default function UserSongs() {
   const { token, user } = useAuthStore();
@@ -15,7 +17,19 @@ export default function UserSongs() {
   const [selectedSong, setSelectedSong] = useState(null);
   const [playlists, setPlaylists] = useState([]);
   const [playlistModalVisible, setPlaylistModalVisible] = useState(false);
+  const [likedSet, setLikedSet] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
+  const searchAnim = useRef(new Animated.Value(0)).current
   const router = useRouter();
+  const playTrack = usePlayerStore(s => s.playTrack)
+  const togglePlay = usePlayerStore(s => s.togglePlay)
+
+  const filteredSongs = React.useMemo(() => songs.filter(s => {
+    const q = (searchQuery || '').trim().toLowerCase()
+    if (!q) return true
+    return (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q)
+  }), [songs, searchQuery])
 
   const fetchUserSongs = useCallback(async () => {
     if (!user) return;
@@ -35,14 +49,64 @@ export default function UserSongs() {
     }
   }, [user, token]);
 
+  const fetchLiked = useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_URL}api/user/liked`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return
+      const j = await res.json()
+      const list = Array.isArray(j.songs) ? j.songs : (Array.isArray(j) ? j : [])
+      setLikedSet(new Set(list.map(s => String(s._id || s.id))))
+    } catch (e) {
+      console.warn('fetchLiked in UserSongs', e)
+    }
+  }, [token])
+
   useEffect(() => {
     fetchUserSongs();
-  }, [fetchUserSongs]);
+    fetchLiked();
+  }, [fetchUserSongs, fetchLiked]);
+
+  // animate search bar on focus/blur
+  useEffect(() => {
+    Animated.timing(searchAnim, { toValue: searchFocused ? 1 : 0, duration: 200, useNativeDriver: true }).start()
+  }, [searchFocused])
 
   const openSongMenu = (song) => {
     setSelectedSong(song);
     setSongMenuVisible(true);
   };
+
+  const handleInlineAddToPlaylist = async (song) => {
+    try {
+      setSelectedSong(song);
+      await fetchUserPlaylists();
+      setPlaylistModalVisible(true);
+      setSongMenuVisible(false);
+    } catch (e) {
+      console.warn('handleInlineAddToPlaylist', e);
+      Alert.alert('Error', 'Could not open playlist selector');
+    }
+  };
+
+  const toggleLike = async (song) => {
+    try {
+      if (!token) return Alert.alert('Not signed in')
+      const res = await fetch(`${API_URL}api/songs/${song._id}/like`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error || json?.message || 'Failed to toggle like')
+      const liked = json.liked === true
+      setLikedSet((cur) => {
+        const next = new Set(Array.from(cur))
+        const key = String(song._id || song.id)
+        if (liked) next.add(key); else next.delete(key)
+        return next
+      })
+    } catch (e) {
+      console.warn('toggleLike userSongs', e)
+      Alert.alert('Error', 'Could not update liked state')
+    }
+  }
 
   const closeSongMenu = () => {
     setSelectedSong(null);
@@ -107,9 +171,14 @@ export default function UserSongs() {
 
   if (loading) return (
     <View style={styles.container}>
-      <View style={{ padding: 16 }}>
-        <View style={{ width: 160, height: 20, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.04)' }} />
-        <View style={{ width: 120, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 8 }} />
+      <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={{ paddingRight: 12 }}>
+          <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <View style={{ width: 160, height: 20, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+          <View style={{ width: 120, height: 14, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.03)', marginTop: 8 }} />
+        </View>
       </View>
       <View style={{ paddingHorizontal: 16 }}>
         {Array.from({ length: 8 }).map((_, i) => (
@@ -127,16 +196,53 @@ export default function UserSongs() {
 
   return (
     <View style={styles.container}>
-      <View style={{ padding: 16 }}>
-        <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: '700' }}>Your Songs</Text>
-        <Text style={{ color: COLORS.textSecondary, marginTop: 6 }}>{songs.length} created tracks</Text>
+      <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={{ paddingRight: 12 }}>
+          <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: '700' }}>Your Songs</Text>
+          <Text style={{ color: COLORS.textSecondary, marginTop: 6 }}>{songs.length} created tracks</Text>
+        </View>
+
+        {/* Top search removed — converted to bottom sticky search bar for a cleaner, app-like layout */}
+        <View style={{ height: 12 }} />
+      </View>
+
+      {/* Search bar placed under header (not fixed to bottom) */}
+      <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+        <View style={{ height: 56, borderRadius: 12, backgroundColor: COLORS.inputBackground, borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 }}>
+          <Ionicons name="search" size={26} color={'#858585b2'} style={{ marginRight: 12 }} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search your songs"
+            placeholderTextColor={"#888888"}
+            style={{ color: COLORS.textPrimary, flex: 1, height: 56, fontSize: 16, fontWeight: '600' }}
+            onFocus={() => { setSearchFocused(true) }}
+            onBlur={() => { setSearchFocused(false) }}
+            returnKeyType="search"
+            underlineColorAndroid="transparent"
+          />
+          {!!searchQuery && (
+            <TouchableOpacity onPress={() => { setSearchQuery(''); Keyboard.dismiss() }} style={{ paddingLeft: 8 }} accessibilityLabel="Clear search">
+              <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <FlatList
-        data={songs}
+        data={filteredSongs}
         keyExtractor={(s) => s._id}
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => router.push(`/Songs/${item._id}`)} style={styles.item} onLongPress={() => openSongMenu(item)}>
+          <TouchableOpacity onPress={async () => {
+            try {
+              const list = filteredSongs || []
+              const idx = list.findIndex(s => String(s._id || s.id) === String(item._id || item.id))
+              playTrack && playTrack(item, list.length ? list : [item], idx >= 0 ? idx : 0)
+            } catch (e) { console.warn('play from UserSongs failed', e) }
+          }} style={styles.item} onLongPress={() => openSongMenu(item)}>
             <View>
               {item.artworkUrl || item.artwork ? (
                 <Image source={{ uri: item.artworkUrl || item.artwork }} style={styles.songArtwork} />
@@ -148,19 +254,23 @@ export default function UserSongs() {
               <Text style={[styles.title, { fontSize: 16 }]} numberOfLines={1}>{item.title}</Text>
               <Text style={[styles.subtitle, { fontSize: 13 }]} numberOfLines={1}>{item.artist || 'Unknown artist'}</Text>
             </View>
+            {/* Inline like/add button: toggles liked state for the user's Liked Songs */}
+            <AddCircleButton isAdded={likedSet.has(String(item._id))} onPress={() => toggleLike(item)} size={30} />
             <TouchableOpacity onPress={(e) => { e.stopPropagation(); openSongMenu(item); }} style={styles.menuButton}>
               <Ionicons name="ellipsis-vertical" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </TouchableOpacity>
         )}
-  contentContainerStyle={{ padding: 0, paddingTop: 6, paddingBottom: 140 }}
-  ListFooterComponent={() => <View style={{ height: 120 }} />}
+  contentContainerStyle={{ padding: 0, paddingTop: 6, paddingBottom: 40 }}
+  ListFooterComponent={() => <View style={{ height: 24 }} />}
         ListEmptyComponent={() => (
           <View style={{ padding: 24 }}>
             <Text style={{ color: COLORS.textSecondary }}>You haven't uploaded any songs yet.</Text>
           </View>
         )}
       />
+
+      
 
       {/* Song options modal */}
       <Modal visible={songMenuVisible} transparent animationType="fade" onRequestClose={closeSongMenu}>

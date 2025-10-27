@@ -1,15 +1,31 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image, ScrollView } from 'react-native'
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Dimensions,
+} from 'react-native'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
+import { Ionicons } from '@expo/vector-icons'
 import COLORS from '../constants/colors'
-import styles from '../assets/styles/profile.styles'
 import { useAuthStore } from '../store/authStore'
 import { API_URL } from '../constants/api'
+
+const { width } = Dimensions.get('window')
 
 export default function EditProfile() {
   const { user, token, fetchMe } = useAuthStore()
   const router = useRouter()
+
   const [form, setForm] = useState({ firstName: '', lastName: '', bio: '', location: '' })
   const [profileImage, setProfileImage] = useState(null)
   const [bannerImage, setBannerImage] = useState(null)
@@ -17,7 +33,12 @@ export default function EditProfile() {
 
   useEffect(() => {
     if (user) {
-      setForm({ firstName: user.firstName || '', lastName: user.lastName || '', bio: user.bio || '', location: user.location || '' })
+      setForm({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        bio: user.bio || '',
+        location: user.location || '',
+      })
       setProfileImage(user.profileImage || null)
       setBannerImage(user.bannerImage || null)
     }
@@ -31,7 +52,12 @@ export default function EditProfile() {
         return
       }
 
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 })
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      })
+
       if (res.canceled) return
       const asset = res.assets && res.assets[0]
       if (!asset) return
@@ -42,101 +68,124 @@ export default function EditProfile() {
     }
   }
 
-  // We will upload images using multipart/form-data to the backend endpoint
+  const uploadImageToCloudinary = async (uri, folder) => {
+    if (!uri) return null
+    if (uri.startsWith('http://') || uri.startsWith('https://')) return uri
+
+    const signRes = await fetch(`${API_URL}api/songs/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ folder, resource_type: 'image' }),
+    })
+    if (!signRes.ok) throw new Error('Failed to get upload signature')
+    const signJson = await signRes.json()
+
+    const cloudUrl = `https://api.cloudinary.com/v1_1/${signJson.cloud_name}/image/upload`
+    const uploadForm = new FormData()
+
+    const parts = uri.split('/')
+    const filename = parts[parts.length - 1]
+    const match = filename.match(/\.([a-zA-Z0-9]+)$/)
+    const ext = match ? match[1].toLowerCase() : 'jpg'
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+
+    uploadForm.append('file', { uri, name: filename, type: mime })
+    uploadForm.append('api_key', signJson.api_key)
+    uploadForm.append('timestamp', String(signJson.timestamp))
+    uploadForm.append('signature', signJson.signature)
+    if (signJson.folder) uploadForm.append('folder', signJson.folder)
+    if (signJson.resource_type) uploadForm.append('resource_type', signJson.resource_type)
+
+    const uploadRes = await fetch(cloudUrl, { method: 'POST', body: uploadForm })
+    const cloudJson = await uploadRes.json()
+    if (!uploadRes.ok) throw new Error(cloudJson.error?.message || 'Cloud upload failed')
+    return cloudJson.secure_url || cloudJson.url
+  }
 
   const handleSave = async () => {
     setLoading(true)
     try {
-      // Prepare updates object to send as JSON. Upload images directly to Cloudinary first (signed upload)
-      const updates = { firstName: form.firstName || '', lastName: form.lastName || '', bio: form.bio || '', location: form.location || '' }
-
-      // helper to sign and upload an image to Cloudinary
-      const uploadImageToCloudinary = async (uri, folder) => {
-        if (!uri) return null
-        // if it's already a URL (starts with http), return as-is
-        if (uri.startsWith('http://') || uri.startsWith('https://')) return uri
-
-        // ask server for a signature
-        const signRes = await fetch(`${API_URL}api/songs/sign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ folder, resource_type: 'image' })
-        })
-        if (!signRes.ok) throw new Error('Failed to get upload signature')
-        const signJson = await signRes.json()
-
-  const cloudUrl = `https://api.cloudinary.com/v1_1/${signJson.cloud_name}/image/upload`
-  const form = new FormData()
-  // name and type
-  const parts = uri.split('/')
-  const filename = parts[parts.length - 1]
-  const match = filename.match(/\.([a-zA-Z0-9]+)$/)
-  const ext = match ? match[1].toLowerCase() : 'jpg'
-  const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
-  form.append('file', { uri, name: filename, type: mime })
-  // include only the api key / timestamp / signature provided by the server
-  // (append only the fields that were part of the string-to-sign on the server)
-  form.append('api_key', signJson.api_key)
-  form.append('timestamp', String(signJson.timestamp))
-  form.append('signature', signJson.signature)
-  // If the signer echoed a folder or resource_type, include them so the upload parameters match the signed string
-  if (signJson.folder) form.append('folder', signJson.folder)
-  if (signJson.resource_type) form.append('resource_type', signJson.resource_type)
-
-        const uploadRes = await fetch(cloudUrl, { method: 'POST', body: form })
-        const cloudJson = await uploadRes.json()
-        if (!uploadRes.ok) throw new Error(cloudJson.error?.message || 'Cloud upload failed')
-        return cloudJson.secure_url || cloudJson.url
+      const updates = {
+        firstName: form.firstName || '',
+        lastName: form.lastName || '',
+        bio: form.bio || '',
+        location: form.location || '',
       }
 
-      // Decide whether to send multipart/form-data (if local files selected) or JSON
+      let finalProfileUrl = profileImage
+      let finalBannerUrl = bannerImage
+
       const isLocalProfile = profileImage && (profileImage.startsWith('file:') || profileImage.includes('/'))
       const isLocalBanner = bannerImage && (bannerImage.startsWith('file:') || bannerImage.includes('/'))
 
+      if (isLocalProfile) {
+        try {
+          finalProfileUrl = await uploadImageToCloudinary(profileImage, 'profiles')
+        } catch (e) {
+          console.warn('Profile upload failed, will attempt multipart upload', e)
+          finalProfileUrl = null
+        }
+      }
+
+      if (isLocalBanner) {
+        try {
+          finalBannerUrl = await uploadImageToCloudinary(bannerImage, 'banners')
+        } catch (e) {
+          console.warn('Banner upload failed, will attempt multipart upload', e)
+          finalBannerUrl = null
+        }
+      }
+
       let res
-      if (isLocalProfile || isLocalBanner) {
-        const form = new FormData()
-        form.append('firstName', updates.firstName)
-        form.append('lastName', updates.lastName)
-        form.append('bio', updates.bio)
-        form.append('location', updates.location)
+      const needMultipart = (isLocalProfile && !finalProfileUrl) || (isLocalBanner && !finalBannerUrl)
+
+      if (!needMultipart) {
+        if (finalProfileUrl && (finalProfileUrl.startsWith('http://') || finalProfileUrl.startsWith('https://'))) updates.profileImage = finalProfileUrl
+        if (finalBannerUrl && (finalBannerUrl.startsWith('http://') || finalBannerUrl.startsWith('https://'))) updates.bannerImage = finalBannerUrl
+
+        res = await fetch(`${API_URL}api/user/profile`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+      } else {
+        const multipart = new FormData()
+        multipart.append('firstName', updates.firstName)
+        multipart.append('lastName', updates.lastName)
+        multipart.append('bio', updates.bio)
+        multipart.append('location', updates.location)
+
         if (isLocalProfile) {
           const parts = profileImage.split('/')
           const filename = parts[parts.length - 1]
-          form.append('profileImage', { uri: profileImage, name: filename, type: 'image/jpeg' })
+          multipart.append('profileImage', { uri: profileImage, name: filename, type: 'image/jpeg' })
         }
         if (isLocalBanner) {
           const parts = bannerImage.split('/')
           const filename = parts[parts.length - 1]
-          form.append('bannerImage', { uri: bannerImage, name: filename, type: 'image/jpeg' })
+          multipart.append('bannerImage', { uri: bannerImage, name: filename, type: 'image/jpeg' })
         }
 
         res = await fetch(`${API_URL}api/user/profile`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` },
-          body: form
-        })
-      } else {
-        // no local files, send JSON with URLs or text fields
-        if (profileImage && (profileImage.startsWith('http://') || profileImage.startsWith('https://'))) updates.profileImage = profileImage
-        if (bannerImage && (bannerImage.startsWith('http://') || bannerImage.startsWith('https://'))) updates.bannerImage = bannerImage
-
-        res = await fetch(`${API_URL}api/user/profile`, {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates)
+          body: multipart,
         })
       }
 
-      if (!res.ok) {
-        const txt = await res.text()
-        console.error('EditProfile failed', res.status, txt)
+      if (!res || !res.ok) {
+        const txt = res ? await res.text().catch(() => '') : ''
+        console.error('EditProfile failed', res && res.status, txt)
         Alert.alert('Save failed', 'Failed to update profile')
         return
       }
 
-      // refresh auth store
-      try { await fetchMe() } catch (e) { /* ignore */ }
+      try {
+        await fetchMe()
+      } catch (e) {
+        // ignore
+      }
+
       Alert.alert('Saved', 'Profile updated')
       router.back()
     } catch (e) {
@@ -147,47 +196,258 @@ export default function EditProfile() {
     }
   }
 
+  const isSaveDisabled = loading || (!form.firstName.trim() && !form.lastName.trim())
+
   return (
-    <ScrollView style={{ flex: 1, padding: 12 }}>
-      <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Edit profile</Text>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Edit profile</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-      <Text style={{ color: COLORS.textSecondary, marginBottom: 6 }}>Profile image</Text>
-      <TouchableOpacity onPress={() => pickImage(setProfileImage)} style={{ marginBottom: 12 }}>
-        {profileImage ? (
-          <Image source={{ uri: profileImage }} style={{ width: 96, height: 96, borderRadius: 8 }} />
-        ) : (
-          <View style={{ width: 96, height: 96, borderRadius: 8, backgroundColor: '#222', justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ color: '#fff' }}>Pick</Text>
+        <View style={styles.bannerContainer}>
+          {bannerImage ? (
+            <Image source={{ uri: bannerImage }} style={styles.banner} />
+          ) : (
+            <View style={styles.bannerPlaceholder}>
+              <Ionicons name="image" size={28} color="#999" />
+              <Text style={styles.bannerPlaceholderText}>Add a banner</Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.bannerEdit} onPress={() => pickImage(setBannerImage)} accessibilityLabel="Edit banner">
+            <Ionicons name="camera" size={16} color="#fff" />
+          </TouchableOpacity>
+
+          <View style={styles.avatarRow}>
+            <View style={styles.avatarWrap}>
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={34} color="#fff" />
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.avatarEdit} onPress={() => pickImage(setProfileImage)} accessibilityLabel="Edit profile image">
+                <Ionicons name="camera" size={14} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.nameCol}>
+              <Text style={styles.nameText}>{(form.firstName || 'First') + ' ' + (form.lastName || 'Last')}</Text>
+              <Text style={styles.subText}>{form.location || 'Location'}</Text>
+            </View>
           </View>
-        )}
-      </TouchableOpacity>
+        </View>
 
-      <Text style={{ color: COLORS.textSecondary, marginBottom: 6 }}>Banner image</Text>
-      <TouchableOpacity onPress={() => pickImage(setBannerImage)} style={{ marginBottom: 12 }}>
-        {bannerImage ? (
-          <Image source={{ uri: bannerImage }} style={{ width: '100%', height: 120, borderRadius: 8 }} />
-        ) : (
-          <View style={{ width: '100%', height: 120, borderRadius: 8, backgroundColor: '#222', justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ color: '#fff' }}>Pick</Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>First name</Text>
+          <TextInput
+            value={form.firstName}
+            onChangeText={(t) => setForm((s) => ({ ...s, firstName: t }))}
+            style={styles.input}
+            placeholder="First name"
+            placeholderTextColor="#9AA0A6"
+            returnKeyType="next"
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Last name</Text>
+          <TextInput
+            value={form.lastName}
+            onChangeText={(t) => setForm((s) => ({ ...s, lastName: t }))}
+            style={styles.input}
+            placeholder="Last name"
+            placeholderTextColor="#9AA0A6"
+            returnKeyType="next"
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.label}>Bio</Text>
+            <Text style={styles.charCount}>{(form.bio || '').length}/200</Text>
           </View>
-        )}
-      </TouchableOpacity>
+          <TextInput
+            value={form.bio}
+            onChangeText={(t) => setForm((s) => ({ ...s, bio: t }))}
+            multiline
+            numberOfLines={3}
+            style={[styles.input, styles.multiline]}
+            placeholder="Tell something about yourself"
+            placeholderTextColor="#9AA0A6"
+            maxLength={200}
+          />
+        </View>
 
-      <Text style={{ color: COLORS.textSecondary, marginBottom: 6 }}>First name</Text>
-      <TextInput value={form.firstName} onChangeText={(t) => setForm(s => ({ ...s, firstName: t }))} style={{ backgroundColor: COLORS.cardBackground, padding: 10, borderRadius: 8, color: COLORS.textPrimary, marginBottom: 12 }} />
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Location</Text>
+          <TextInput
+            value={form.location}
+            onChangeText={(t) => setForm((s) => ({ ...s, location: t }))}
+            style={styles.input}
+            placeholder="City, Country"
+            placeholderTextColor="#9AA0A6"
+            returnKeyType="done"
+          />
+        </View>
 
-      <Text style={{ color: COLORS.textSecondary, marginBottom: 6 }}>Last name</Text>
-      <TextInput value={form.lastName} onChangeText={(t) => setForm(s => ({ ...s, lastName: t }))} style={{ backgroundColor: COLORS.cardBackground, padding: 10, borderRadius: 8, color: COLORS.textPrimary, marginBottom: 12 }} />
+        <TouchableOpacity onPress={handleSave} style={[styles.saveButton, isSaveDisabled ? styles.saveDisabled : null]} disabled={isSaveDisabled} accessibilityRole="button">
+          {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.saveText}>Save changes</Text>}
+        </TouchableOpacity>
 
-      <Text style={{ color: COLORS.textSecondary, marginBottom: 6 }}>Bio</Text>
-      <TextInput value={form.bio} onChangeText={(t) => setForm(s => ({ ...s, bio: t }))} multiline numberOfLines={3} style={{ backgroundColor: COLORS.cardBackground, padding: 10, borderRadius: 8, color: COLORS.textPrimary, marginBottom: 12 }} />
-
-      <Text style={{ color: COLORS.textSecondary, marginBottom: 6 }}>Location</Text>
-      <TextInput value={form.location} onChangeText={(t) => setForm(s => ({ ...s, location: t }))} style={{ backgroundColor: COLORS.cardBackground, padding: 10, borderRadius: 8, color: COLORS.textPrimary, marginBottom: 18 }} />
-
-      <TouchableOpacity onPress={handleSave} style={[styles.addButton, { justifyContent: 'center', flexDirection: 'row', alignItems: 'center' }]} disabled={loading}>
-        {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.addButtonText}>Save</Text>}
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+    paddingBottom: 40,
+    backgroundColor: COLORS.background,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    color: COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  bannerContainer: {
+    marginBottom: 16,
+  },
+  banner: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    resizeMode: 'cover',
+  },
+  bannerPlaceholder: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#222',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerPlaceholderText: {
+    color: '#999',
+    marginTop: 6,
+  },
+  bannerEdit: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 8,
+    borderRadius: 8,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -28,
+  },
+  avatarWrap: {
+    marginLeft: 6,
+    width: 96,
+    height: 96,
+  },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: COLORS.background,
+  },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarEdit: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    backgroundColor: COLORS.primary || '#1a73e8',
+    padding: 6,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: COLORS.background,
+  },
+  nameCol: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  nameText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  subText: {
+    marginTop: 4,
+    color: COLORS.textSecondary,
+  },
+  fieldGroup: {
+    marginBottom: 12,
+  },
+  label: {
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: COLORS.cardBackground,
+    padding: 12,
+    borderRadius: 10,
+    color: COLORS.textPrimary,
+  },
+  multiline: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  charCount: {
+    color: '#9AA0A6',
+    fontSize: 12,
+  },
+  saveButton: {
+    marginTop: 6,
+    backgroundColor: COLORS.primary || '#1a73e8',
+    paddingVertical: 14,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveDisabled: {
+    opacity: 0.6,
+  },
+  saveText: {
+    color: COLORS.black,
+    fontWeight: '700',
+  },
+})

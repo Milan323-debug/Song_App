@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   title: {
-    fontSize: 20,
+    fontSize: 27,
     fontWeight: "800",
     color: COLORS.textPrimary,
     marginBottom: 6,
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   buttonText: {
-    color: COLORS.white,
+    color: COLORS.cardBackground,
     fontSize: 16,
     fontWeight: "700",
   },

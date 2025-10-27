@@ -12,9 +12,9 @@ import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import COLORS from "../../constants/colors";
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from "expo-linear-gradient";
 import { useUiStore } from "../../store/uiStore";
-import PlayerContainer from '../../components/PlayerContainer'
+import PlayerContainer from "../../components/PlayerContainer";
 
 function CreateTabButton(props) {
   const setChooserVisible = useUiStore((s) => s.setChooserVisible);
@@ -42,8 +42,8 @@ function CreateTabButton(props) {
     >
       <Ionicons
         name="add-circle"
-        size={30}
-        color={selected ? COLORS.primary : "#def7ffff"}
+        size={40}
+        color={selected ? COLORS.primary : "#aeb3b4ff"}
         style={{ marginBottom: 4 }}
       />
     </TouchableOpacity>
@@ -252,8 +252,18 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: COLORS.primary,
-          tabBarInactiveTintColor: "#def7ffff",
+          tabBarActiveTintColor: COLORS.white,
+          tabBarInactiveTintColor: "#929494dc",
+
+          // ⬇️ Added this block for spacing and label styling
+          tabBarIconStyle: {
+            marginBottom: 4, // increases gap between icon and label
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            marginTop: 2, // optional small adjustment for text spacing
+          },
+
           tabBarStyle: {
             position: "absolute",
             borderTopWidth: 0,
@@ -262,13 +272,14 @@ export default function TabLayout() {
             height: tabBarHeight,
             paddingBottom: insets.bottom,
           },
+
           tabBarBackground: () => (
             <LinearGradient
               colors={[
-                'rgba(11,11,11,0.98)', // solid dark at very bottom for contrast with system UI
-                'rgba(0, 0, 0, 1)',
-                'rgba(0, 0, 0, 0.62)',
-                'transparent',
+                "rgba(11,11,11,0.98)",
+                "rgba(0, 0, 0, 1)",
+                "rgba(0, 0, 0, 0.62)",
+                "transparent",
               ]}
               locations={[0, 0.3, 0.7, 1]}
               start={{ x: 0.5, y: 1 }}
@@ -282,8 +293,8 @@ export default function TabLayout() {
           name="Home"
           options={{
             title: "Home",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home-outline" size={size} color={color} />
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="home" size={28} color={color} />
             ),
           }}
         />
@@ -291,8 +302,8 @@ export default function TabLayout() {
           name="Playlists"
           options={{
             title: "Playlists",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="library-outline" size={size} color={color} />
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="library" size={28} color={color} />
             ),
           }}
         />
@@ -307,8 +318,8 @@ export default function TabLayout() {
           name="Liked"
           options={{
             title: "Liked",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="heart" size={size} color={color} />
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="heart" size={28} color={color} />
             ),
           }}
         />
@@ -316,15 +327,14 @@ export default function TabLayout() {
           name="Profile"
           options={{
             title: "Profile",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person-outline" size={size} color={color} />
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="person" size={28} color={color} />
             ),
           }}
         />
-  {/* CreatePlaylist is nested under createStack (app/(tabs)/createStack/CreatePlaylist.jsx) and is not its own tab */}
       </Tabs>
 
-  <PlayerContainer tabBarHeight={tabBarHeight} />
+      <PlayerContainer tabBarHeight={tabBarHeight} />
 
       <OverlayMenu
         visible={chooserVisible}

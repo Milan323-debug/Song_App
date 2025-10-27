@@ -15,6 +15,7 @@ import {
 } from "../controllers/user.controller.js";
 import upload from "../middleware/upload.middleware.js";
 import protectRoute from "../middleware/auth.middleware.js";
+import { deleteUser } from "../controllers/user.controller.js";
 
 const router = express.Router();
 
@@ -37,6 +38,9 @@ router.get('/liked', protectRoute, getLikedSongs);
 router.get('/:userId/likes', getUserLikedSongs);
 router.post('/liked', protectRoute, addLikedSong);
 router.delete('/liked/:songId', protectRoute, removeLikedSong);
+
+// allow account deletion (user can delete their own account)
+router.delete('/:id', protectRoute, deleteUser);
 
 // fetch user by id (move below specific routes to avoid collisions like '/liked')
 router.get('/:id', getUserById);

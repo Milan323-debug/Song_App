@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import User from '../models/user.model.js';
 import Song from '../models/song.model.js';
+import Playlist from '../models/playlist.model.js';
 import cloudinary from '../config/cloudinary.js';
 import Notification from '../models/notification.model.js';
 
@@ -374,3 +375,46 @@ export const removeLikedSong = asyncHandler(async (req, res) => {
 });
 
 export default {};
+
+// Delete user account (protected) - only allow deleting your own account
+export const deleteUser = asyncHandler(async (req, res) => {
+	const authUser = req.user;
+	const { id } = req.params;
+	if (!authUser) return res.status(401).json({ message: 'Not authenticated' });
+	if (!id) return res.status(400).json({ message: 'Missing user id' });
+	if (String(authUser._id) !== String(id)) return res.status(403).json({ message: 'Not authorized to delete this account' });
+
+	try {
+		// Delete songs and associated Cloudinary resources
+		const songs = await Song.find({ user: authUser._id }).select('publicId artworkPublicId');
+		for (const s of songs) {
+			if (s.publicId) {
+				try { await cloudinary.uploader.destroy(s.publicId, { resource_type: 'raw' }); } catch (e) { console.warn('Failed to destroy song resource', s.publicId, e); }
+			}
+			if (s.artworkPublicId) {
+				try { await cloudinary.uploader.destroy(s.artworkPublicId, { resource_type: 'image' }); } catch (e) { console.warn('Failed to destroy artwork', s.artworkPublicId, e); }
+			}
+		}
+		await Song.deleteMany({ user: authUser._id });
+
+		// Delete playlists owned by the user
+		const playlists = await Playlist.find({ user: authUser._id }).select('imageUrl');
+		// If playlists have cloudinary image public ids (not standard), attempt deletion by URL heuristics could be added here
+		await Playlist.deleteMany({ user: authUser._id });
+
+		// Delete notifications to/from this user
+		await Notification.deleteMany({ $or: [{ from: authUser._id }, { to: authUser._id }] }).catch(() => {});
+
+		// Remove user from other users' followers / following arrays
+		await User.updateMany({ followers: authUser._id }, { $pull: { followers: authUser._id } }).catch(() => {});
+		await User.updateMany({ following: authUser._id }, { $pull: { following: authUser._id } }).catch(() => {});
+
+		// Finally remove the user record
+		await User.findByIdAndDelete(authUser._id);
+
+		return res.status(200).json({ message: 'Account deleted' });
+	} catch (e) {
+		console.error('deleteUser error', e);
+		return res.status(500).json({ message: 'Failed to delete account' });
+	}
+});
