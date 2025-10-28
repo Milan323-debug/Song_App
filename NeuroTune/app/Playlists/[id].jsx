@@ -55,6 +55,10 @@ export default function PlaylistDetail() {
   const resume = usePlayerStore((s) => s.resume)
   const navigation = useNavigation()
   const [likedSet, setLikedSet] = useState(new Set())
+  const [playlistModalVisible, setPlaylistModalVisible] = useState(false)
+  const [playlists, setPlaylists] = useState([])
+  const [playlistsLoading, setPlaylistsLoading] = useState(false)
+  const [selectedForPlaylist, setSelectedForPlaylist] = useState(null)
 
   useEffect(() => {
     fetchPlaylist()
@@ -152,10 +156,58 @@ export default function PlaylistDetail() {
     }
   }
 
+  // Add to playlist flow for playlist-detail songs
   const addToPlaylist = async (song) => {
-    Alert.alert('Add to Playlist', 'Not implemented in this demo')
+    if (!token) return Alert.alert('Not signed in')
+    try {
+      setSelectedForPlaylist(song)
+      if (!playlists || playlists.length === 0) await fetchUserPlaylists()
+      setPlaylistModalVisible(true)
+    } catch (e) {
+      console.warn('open add to playlist', e)
+      Alert.alert('Error', 'Could not open playlist selector')
+    }
     closeMenu()
   }
+
+  const fetchUserPlaylists = async () => {
+    if (!token) return
+    try {
+      setPlaylistsLoading(true)
+      const res = await fetch(`${API_URL}api/playlists/mine`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) { setPlaylists([]); return }
+      const d = await res.json()
+      const list = d && Array.isArray(d.playlists) ? d.playlists : []
+      setPlaylists(list)
+    } catch (e) {
+      console.warn('fetchUserPlaylists', e)
+      setPlaylists([])
+    } finally {
+      setPlaylistsLoading(false)
+    }
+  }
+
+  const handleAddToPlaylist = async (playlistId) => {
+    if (!playlistId || !selectedForPlaylist || !token) return
+    try {
+      const pr = await fetch(`${API_URL}api/playlists/${playlistId}`)
+      if (!pr.ok) throw new Error('Failed to fetch playlist')
+      const pj = await pr.json()
+      const existing = Array.isArray(pj.playlist?.songs) ? pj.playlist.songs.map(s => String(s._id || s)) : []
+      const next = Array.from(new Set([...existing, String(selectedForPlaylist._id || selectedForPlaylist.id)]))
+      const upr = await fetch(`${API_URL}api/playlists/${playlistId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ songs: next })
+      })
+      if (!upr.ok) throw new Error('Failed to update playlist')
+      setPlaylistModalVisible(false)
+      setSelectedForPlaylist(null)
+      Alert.alert('Added', 'Song added to playlist')
+    } catch (e) {
+      console.error('add to playlist', e)
+      Alert.alert('Error', 'Failed to add song to playlist')
+    }
+  }
+
 
   const shareSong = async (song) => {
     try {
@@ -396,6 +448,61 @@ export default function PlaylistDetail() {
           addToPlaylist={addToPlaylist}
           shareSong={shareSong}
         />
+        {/* Playlist selection modal for adding a song to another playlist */}
+        <Modal visible={playlistModalVisible} transparent animationType="slide" onRequestClose={() => setPlaylistModalVisible(false)}>
+          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setPlaylistModalVisible(false)}>
+            <Pressable onPress={() => {}} style={{ width: '100%' }}>
+              <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '100%', paddingBottom: 32 }}>
+                <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Select Playlist</Text>
+                {playlistsLoading ? (
+                  <ActivityIndicator color={COLORS.primary} />
+                ) : (
+                  <FlatList
+                    data={playlists}
+                    keyExtractor={(p) => p._id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity style={{ paddingVertical: 12, flexDirection: 'row', alignItems: 'center' , borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)'}} onPress={() => handleAddToPlaylist(item._id)}>
+                        <Image source={{ uri: item.imageUrl || item.poster || item.cover || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
+                        <View style={{ marginLeft: 12, flex: 1 }}>
+                          <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title}</Text>
+                          <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={() => <Text style={{ color: COLORS.textSecondary }}>No playlists</Text>}
+                  />
+                )}
+                <TouchableOpacity
+  style={{
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+  }}
+  activeOpacity={0.8}
+  onPress={() => setPlaylistModalVisible(false)}
+>
+  <Text
+    style={{
+      color: COLORS.textPrimary,
+      fontWeight: '600',
+      fontSize: 16,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    }}
+  >
+    Cancel
+  </Text>
+</TouchableOpacity>
+
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </GradientBackground>
   )

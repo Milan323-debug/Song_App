@@ -13,8 +13,8 @@ const styles = {
     borderTopRightRadius: 14,
     borderBottomLeftRadius: 10,
     borderBottomRightRadius: 10,
-    // slightly darker than screen for contrast
-    backgroundColor: 'rgba(1, 66, 77, 0.85)',
+  // solid background (remove transparency so the player container is opaque)
+  backgroundColor: COLORS.playerContainer,
   paddingVertical: 10,
   paddingHorizontal: 12,
   minHeight: 4,

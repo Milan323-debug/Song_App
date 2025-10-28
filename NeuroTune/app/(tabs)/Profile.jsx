@@ -304,13 +304,14 @@ export default function Profile() {
               keyExtractor={(i) => i._id}
               renderItem={({ item, index }) => (
                 <Reanimated.View entering={FadeIn.delay(index * 80).duration(400)} style={{ marginRight: 12 }}>
-                  <TouchableOpacity activeOpacity={0.9} onPress={() => router.push(`/Songs/${item._id}`)}>
-                        <View style={styles.recentCard}>
-                          <Image source={{ uri: item.artworkUrl || DEFAULT_ARTWORK_URL }} style={{ width: '100%', height: '100%' }} />
-                        </View>
+                  {/* Presentational card only: removed navigation link so it's not clickable */}
+                  <View>
+                    <View style={styles.recentCard}>
+                      <Image source={{ uri: item.artworkUrl || DEFAULT_ARTWORK_URL }} style={{ width: '100%', height: '100%' }} />
+                    </View>
                     <Text numberOfLines={1} style={{ color: COLORS.textPrimary, marginTop: 8, width: 120 }}>{item.title}</Text>
                     <Text numberOfLines={1} style={{ color: COLORS.textSecondary, fontSize: 12, width: 120 }}>{item.artist || ''}</Text>
-                  </TouchableOpacity>
+                  </View>
                 </Reanimated.View>
               )}
             />

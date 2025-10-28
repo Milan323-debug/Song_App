@@ -15,6 +15,7 @@ const COLORS = {
   error: "#FF6B6B",            // Vivid Red for errors/alerts
   success: "#32CD32",          // Bright Green for success messages
   warning: "#FFA500",          // Orange for warnings
+  playerContainer: "#001A1E",    // Dark teal for player container background
 };
 
 export default COLORS;

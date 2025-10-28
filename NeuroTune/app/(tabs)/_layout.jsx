@@ -253,7 +253,7 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: COLORS.white,
-          tabBarInactiveTintColor: "#929494dc",
+          tabBarInactiveTintColor: "rgba(202, 206, 206, 0.84)",
 
           // ⬇️ Added this block for spacing and label styling
           tabBarIconStyle: {
@@ -276,12 +276,12 @@ export default function TabLayout() {
           tabBarBackground: () => (
             <LinearGradient
               colors={[
-                "rgba(11,11,11,0.98)",
+                "rgba(0, 0, 0, 0.98)",
                 "rgba(0, 0, 0, 1)",
-                "rgba(0, 0, 0, 0.62)",
+                "rgba(0, 0, 0, 0)",
                 "transparent",
               ]}
-              locations={[0, 0.3, 0.7, 1]}
+              locations={[0, 0.1, 0.9, 1]}
               start={{ x: 0.5, y: 1 }}
               end={{ x: 0.5, y: 0 }}
               style={{ flex: 1 }}

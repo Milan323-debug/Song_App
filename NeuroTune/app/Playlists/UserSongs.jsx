@@ -313,9 +313,12 @@ export default function UserSongs() {
                   data={playlists}
                   keyExtractor={(p) => p._id}
                   renderItem={({ item }) => (
-                    <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => handleAddToPlaylist(item._id)}>
-                      <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title}</Text>
-                      <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
+                    <TouchableOpacity style={{ paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }} onPress={() => handleAddToPlaylist(item._id)}>
+                      <Image source={{ uri: item.imageUrl || item.poster || item.cover || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title}</Text>
+                        <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
+                      </View>
                     </TouchableOpacity>
                   )}
                 />

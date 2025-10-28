@@ -27,6 +27,7 @@ import { useAuthStore } from '../../store/authStore'
 import Reanimated, { useSharedValue, useAnimatedStyle, useAnimatedScrollHandler, interpolate, Extrapolate } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { DEFAULT_ARTWORK_URL } from '../../constants/artwork'
+import styles from '../../assets/styles/playlists.styles'
 const AnimatedImage = Reanimated.createAnimatedComponent(Image)
 const AnimatedFlatList = Reanimated.createAnimatedComponent(FlatList)
 const AnimatedText = Reanimated.createAnimatedComponent(Text)
@@ -43,6 +44,10 @@ export default function LikedSongs() {
   const [menuTarget, setMenuTarget] = useState(null)
   const [menuAnim] = useState(new Animated.Value(0))
   const [refreshing, setRefreshing] = useState(false)
+  const [playlistModalVisible, setPlaylistModalVisible] = useState(false)
+  const [playlists, setPlaylists] = useState([])
+  const [playlistsLoading, setPlaylistsLoading] = useState(false)
+  const [selectedForPlaylist, setSelectedForPlaylist] = useState(null)
   const scrollYRef = useRef(null)
   const scrollY = useSharedValue(0)
   const [searchText, setSearchText] = useState('')
@@ -150,9 +155,65 @@ export default function LikedSongs() {
   }
 
   const addToPlaylist = async (song) => {
-    // For simplicity open a prompt or call appropriate endpoint
-    Alert.alert('Add to Playlist', 'Not implemented in this demo')
+    // Open playlist selector modal and lazy-load user's playlists
+    if (!token) {
+      Alert.alert('Not signed in')
+      return
+    }
+    try {
+      setSelectedForPlaylist(song)
+      // fetch playlists lazily
+      if (!playlists || playlists.length === 0) await fetchUserPlaylists()
+      setPlaylistModalVisible(true)
+    } catch (e) {
+      console.warn('open add to playlist', e)
+      Alert.alert('Error', 'Could not open playlist selector')
+    }
     closeMenu()
+  }
+
+  const fetchUserPlaylists = async () => {
+    if (!token) return
+    try {
+      setPlaylistsLoading(true)
+      const res = await fetch(`${API_URL}api/playlists/mine`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) {
+        setPlaylists([])
+        return
+      }
+      const d = await res.json()
+      const list = d && Array.isArray(d.playlists) ? d.playlists : []
+      setPlaylists(list)
+    } catch (e) {
+      console.warn('fetchUserPlaylists', e)
+      setPlaylists([])
+    } finally {
+      setPlaylistsLoading(false)
+    }
+  }
+
+  const handleAddToPlaylist = async (playlistId) => {
+    if (!playlistId || !selectedForPlaylist || !token) return
+    try {
+      // fetch current playlist songs
+      const pr = await fetch(`${API_URL}api/playlists/${playlistId}`)
+      if (!pr.ok) throw new Error('Failed to fetch playlist')
+      const pj = await pr.json()
+      const existing = Array.isArray(pj.playlist?.songs) ? pj.playlist.songs.map(s => String(s._id || s)) : []
+      const next = Array.from(new Set([...existing, String(selectedForPlaylist._id || selectedForPlaylist.id)]))
+      const upr = await fetch(`${API_URL}api/playlists/${playlistId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ songs: next })
+      })
+      if (!upr.ok) throw new Error('Failed to update playlist')
+      setPlaylistModalVisible(false)
+      setSelectedForPlaylist(null)
+      Alert.alert('Added', 'Song added to playlist')
+    } catch (e) {
+      console.error('add to playlist', e)
+      Alert.alert('Error', 'Failed to add song to playlist')
+    }
   }
 
   const shareSong = async (song) => {
@@ -173,7 +234,7 @@ export default function LikedSongs() {
     const isPlaying = current && current._id === item._id
     return (
       <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
-  <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover || DEFAULT_ARTWORK_URL }} style={[styles.artwork, isPlaying && styles.playingArtwork]} />
+        <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover || DEFAULT_ARTWORK_URL }} style={[styles.songArtwork, isPlaying && styles.playingArtwork]} />
         <View style={styles.itemText}>
           <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
           <Text numberOfLines={1} style={styles.subtitle}>{item.artist || item.artists?.join(', ') || ''}</Text>
@@ -525,8 +586,42 @@ export default function LikedSongs() {
           </View>
         </Modal>
 
+        {/* Playlist selection modal for 'Add to Playlist' */}
+        <Modal visible={playlistModalVisible} transparent animationType="fade" onRequestClose={() => setPlaylistModalVisible(false)}>
+          {/* Backdrop: justifyContent flex-end so sheet sits at bottom */}
+          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setPlaylistModalVisible(false)}>
+            {/* Content container: tapping inside should not close the modal, so stop propagation by using a nested Pressable without onPress */}
+            <Pressable onPress={() => {}} style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
+              <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '60%' }}>
+                <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Select Playlist</Text>
+                {playlistsLoading ? (
+                  <ActivityIndicator color={COLORS.primary} />
+                ) : (
+                  <FlatList
+                    data={playlists}
+                    keyExtractor={(p) => p._id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity style={{ paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }} onPress={() => handleAddToPlaylist(item._id)}>
+                        <Image source={{ uri: item.imageUrl || item.poster || item.cover || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
+                        <View style={{ marginLeft: 12, flex: 1 }}>
+                          <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title}</Text>
+                          <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={() => <Text style={{ color: COLORS.textSecondary }}>No playlists</Text>}
+                  />
+                )}
+                <TouchableOpacity style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', alignItems: 'center' }} onPress={() => setPlaylistModalVisible(false)}>
+                  <Text style={{ color: COLORS.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         {/* dark bottom overlay to reduce brightness and emulate Spotify-style footer */}
-        <View pointerEvents="none" style={styles.bottomDark} />
+        <View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, bottom: 0, height: 220, backgroundColor: 'transparent' }} />
       </View>
     </GradientBackground>
   )
@@ -538,249 +633,3 @@ function formatDuration(d) {
   const m = Math.floor((d/1000/60) % 60)
   return `${m}:${s.toString().padStart(2,'0')}`
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    // increase paddingTop so the search bar can sit above the image/title without overlap
-    paddingTop: 72,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
-  },
-  headerImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 6,
-    marginRight: 12,
-    backgroundColor: '#111',
-    borderWidth: 1,
-    borderColor: COLORS.primary + '33',
-  },
-  headerAvatarButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)'
-  },
-  headerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.cardBackground,
-  },
-  headerTextWrap: {
-    flex: 1,
-  },
-  headerSubtitle: {
-    color: "#09ffffff",
-    fontSize: 15,
-  },
-  headerTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  playAll: {
-    // moved absolute positioning to wrapper so this is only visual button styling
-    backgroundColor: COLORS.primary,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.9,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 8,
-  },
-
-  playAllContainer: {
-    position: 'absolute',
-    right: 18,
-    zIndex: 12,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  artwork: {
-    width: 56,
-    height: 56,
-    borderRadius: 6,
-    backgroundColor: COLORS.cardBackground,
-  },
-  playingArtwork: {
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-  },
-  itemText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  title: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  playingText: {
-    color: COLORS.neonAqua,
-  },
-  subtitle: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-    marginTop: 4,
-  },
-  duration: {
-    color: COLORS.textSecondary,
-    marginLeft: 8,
-    width: 48,
-    textAlign: 'right',
-  },
-  menuButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  menuBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  menuCard: {
-    backgroundColor: 'rgba(18,18,24,0.85)',
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    backdropFilter: 'blur(8px)',
-  },
-  menuTitle: { color: COLORS.textPrimary, fontWeight: '700', marginBottom: 8 },
-  menuOption: { paddingVertical: 12 },
-  menuOptionText: { color: COLORS.textPrimary, fontSize: 16 },
-  miniPlayerWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 84,
-    paddingHorizontal: 12,
-  },
-  searchBoxWrap: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    // top is controlled by the animated style `searchBoxStyle` so the box
-    // remains visually anchored inside the header and moves with it.
-  },
-  searchInput: {
-    height: 44,
-    flex: 1,
-    paddingHorizontal: 10,
-    color: COLORS.textPrimary,
-  },
-  searchInner: {
-  height: 44,
-  borderRadius: 22,
-  paddingHorizontal: 12,
-  backgroundColor: 'rgba(255, 255, 255, 0.08)', // Slightly darker for better contrast
-  borderWidth: 1,
-  borderColor: 'rgba(255, 255, 255, 0.15)', // Softer border for a subtle effect
-  flexDirection: 'row',
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOpacity: 0.15, // Increased opacity for a more pronounced shadow
-  shadowOffset: { width: 0, height: 3 }, // Slightly deeper shadow for depth
-  shadowRadius: 6,
-  elevation: 3, // Enhanced elevation for Android
-  borderColor: 'rgba(5, 223, 197, 0.86)', // Subtle bottom border for depth
-},
-
-  searchIcon: {
-    marginRight: 8,
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  tabActive: {
-    backgroundColor: COLORS.primary,
-  },
-  collapsedHeader: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: 56,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.cardBackground
-  },
-  backButton: {
-    position: 'absolute',
-    left: 8,
-    top: 12,
-    padding: 8,
-  },
-  collapsedTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  seamPlayContainer: {
-    position: 'absolute',
-    right: 20,
-    alignItems: 'center',
-  },
-  seamPlayButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.neonAqua,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.neonAqua,
-    shadowOpacity: 0.98,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    elevation: 18,
-  },
-  modeButton: {
-    // make transparent and remove circular filled background for a cleaner look
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modeButtonSeam: {
-    marginRight: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
- 
-  bottomDark: {
-    ...StyleSheet.absoluteFillObject,
-    bottom: 0,
-    height: 220,
-    backgroundColor: 'transparent',
-    // gradient handled by GradientBackground bottomDark prop; fallback overlay
-  },
-})

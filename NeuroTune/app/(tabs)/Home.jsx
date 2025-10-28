@@ -20,6 +20,7 @@ import {
   Alert,
   Share,
 } from 'react-native'
+import { Pressable } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import COLORS from '../../constants/colors'
 import { useAuthStore } from '../../store/authStore'
@@ -154,6 +155,32 @@ export default function Home() {
   const [selectedSongForPlaylist, setSelectedSongForPlaylist] = useState(null)
   const [songMenuVisibleHome, setSongMenuVisibleHome] = useState(false)
   const [selectedSongForMenu, setSelectedSongForMenu] = useState(null)
+  // Local modal state for the owner's/general song actions menu
+  const [songMenuVisible, setSongMenuVisible] = useState(false)
+
+  const closeSongMenu = useCallback(() => {
+    setSongMenuVisible(false)
+    setSelectedSongForMenu(null)
+  }, [])
+  // If user taps "Add to Playlist" from the owner/general song menu,
+  // open the home playlist picker and set the selected song.
+  const openAddToPlaylist = useCallback(() => {
+    if (selectedSongForMenu) setSelectedSongForPlaylist(selectedSongForMenu)
+    setPlaylistModalVisibleHome(true)
+    // close the small menu
+    setSongMenuVisible(false)
+    setSelectedSongForMenu(null)
+  }, [selectedSongForMenu])
+
+  // Minimal delete handler stub to avoid runtime ReferenceError when
+  // the menu is rendered. The real implementation (delete-owned-song)
+  // lives in the UserSongs / Playlist screens where deletion is allowed.
+  const handleDeleteSong = useCallback(() => {
+    Alert.alert('Not available', 'Deleting songs is only supported from your uploads/playlists screen.')
+    // close menu after notifying
+    setSongMenuVisible(false)
+    setSelectedSongForMenu(null)
+  }, [])
   const [searchPage, setSearchPage] = useState({ songs: 1, playlists: 1, artists: 1 })
   const abortRef = useRef(null)
   const allSongsAbortRef = useRef(null)
@@ -976,31 +1003,50 @@ export default function Home() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Home: Playlist selection modal (when adding from Home) */}
+      {/* Song options modal */}
+      <Modal visible={songMenuVisible} transparent animationType="fade" onRequestClose={closeSongMenu}>
+        <TouchableWithoutFeedback onPress={closeSongMenu}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <TouchableWithoutFeedback>
+              <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Song Actions</Text>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={handleDeleteSong}>
+                  <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                  <Text style={{ color: COLORS.error, marginLeft: 12, fontSize: 16 }}>Delete Song</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={openAddToPlaylist}>
+                  <Ionicons name="add" size={20} color={COLORS.textPrimary} />
+                  <Text style={{ color: COLORS.textPrimary, marginLeft: 12, fontSize: 16 }}>Add to Playlist</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }} onPress={closeSongMenu}>
+                  <Text style={{ color: COLORS.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Playlist selection modal (Home-specific state + playlists) */}
       <Modal visible={playlistModalVisibleHome} transparent animationType="fade" onRequestClose={() => setPlaylistModalVisibleHome(false)}>
         <TouchableWithoutFeedback onPress={() => setPlaylistModalVisibleHome(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
             <TouchableWithoutFeedback>
               <View style={{ backgroundColor: COLORS.cardBackground, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '60%' }}>
                 <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Select Playlist</Text>
-                {homePlaylistsLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 12 }} />
-                ) : (homePlaylists && homePlaylists.length ? (
-                  <FlatList
-                    data={homePlaylists}
-                    keyExtractor={(p) => String(p._id || p.id)}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => handleAddToPlaylistHome(item._id || item.id)}>
-                        <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title || item.name}</Text>
+                <FlatList
+                  data={homePlaylists}
+                  keyExtractor={(p) => String(p._id || p.id)}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity style={{ paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }} onPress={() => handleAddToPlaylistHome(item._id || item.id)}>
+                      <Image source={{ uri: item.imageUrl || item.poster || item.cover || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Text style={{ color: COLORS.textPrimary, fontSize: 16 }}>{item.title}</Text>
                         <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{(item.songs?.length || 0)} songs</Text>
-                      </TouchableOpacity>
-                    )}
-                  />
-                ) : (
-                  <View style={{ paddingVertical: 12 }}>
-                    <Text style={{ color: COLORS.textSecondary }}>You don't have any playlists yet.</Text>
-                  </View>
-                ))}
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
                 <TouchableOpacity style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }} onPress={() => setPlaylistModalVisibleHome(false)}>
                   <Text style={{ color: COLORS.textSecondary }}>Cancel</Text>
                 </TouchableOpacity>
@@ -1120,6 +1166,14 @@ const styles = StyleSheet.create({
   resultRow: { paddingVertical: 8 },
   resultRowTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700' },
   resultRowSub: { color: COLORS.textSecondary, marginTop: 2, fontSize: 12 },
+
+  // used in playlist picker rows
+  songArtwork: {
+    width: 56,
+    height: 56,
+    borderRadius: 6,
+    backgroundColor: DEFAULT_ARTWORK_BG,
+  },
 
   // tighten up the main grid cards so everything feels compact and balanced
   thumb: { width: '100%', height: '100%', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
