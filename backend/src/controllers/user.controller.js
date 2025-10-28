@@ -303,7 +303,14 @@ export const getLikedSongs = asyncHandler(async (req, res) => {
 			return res.status(200).json({ songs: [] });
 		}
 
-		return res.status(200).json({ songs });
+		// Order the returned songs to match the user's likedSongs order.
+		// `validIds` is in the same order as the stored user.likedSongs.
+		const idToSong = new Map((songs || []).map(s => [String(s._id), s]));
+		let ordered = validIds.map(id => idToSong.get(String(id))).filter(Boolean);
+		// Most recently liked items are appended to the user's likedSongs array; present most-recent-first
+		ordered = ordered.slice().reverse();
+
+		return res.status(200).json({ songs: ordered });
 	} catch (err) {
 		console.error('getLikedSongs: unexpected error', err && err.stack ? err.stack : err);
 		return res.status(500).json({ error: 'Internal Server Error' });

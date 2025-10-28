@@ -34,7 +34,13 @@ export const createPlaylist = asyncHandler(async (req, res) => {
 
 // Get all playlists (publicly readable)
 export const getPlaylists = asyncHandler(async (req, res) => {
-  const playlists = await Playlist.find({}).sort({ createdAt: -1 }).populate("user", "username profileImage").populate("songs");
+  let playlists = await Playlist.find({}).sort({ createdAt: -1 }).populate("user", "username profileImage").populate("songs");
+  // Order songs so recently-added appear first (reverse stored array)
+  playlists = playlists.map(pl => {
+    const p = pl.toObject ? pl.toObject() : pl
+    p.songs = Array.isArray(p.songs) ? p.songs.slice().reverse() : []
+    return p
+  })
   res.status(200).json({ playlists });
 });
 
@@ -42,7 +48,12 @@ export const getPlaylists = asyncHandler(async (req, res) => {
 export const getMyPlaylists = asyncHandler(async (req, res) => {
   const user = req.user;
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
-  const playlists = await Playlist.find({ user: user._id }).sort({ createdAt: -1 }).populate('user', 'username profileImage').populate('songs');
+  let playlists = await Playlist.find({ user: user._id }).sort({ createdAt: -1 }).populate('user', 'username profileImage').populate('songs');
+  playlists = playlists.map(pl => {
+    const p = pl.toObject ? pl.toObject() : pl
+    p.songs = Array.isArray(p.songs) ? p.songs.slice().reverse() : []
+    return p
+  })
   res.status(200).json({ playlists });
 });
 
@@ -66,7 +77,8 @@ export const getPlaylist = asyncHandler(async (req, res) => {
     if (!playlist.songs) {
       playlist.songs = [];
     }
-    
+    // Return songs with most-recently-added first (reverse stored order)
+    playlist.songs = Array.isArray(playlist.songs) ? playlist.songs.slice().reverse() : []
     res.status(200).json({ playlist });
   } catch (error) {
     console.error('Error fetching playlist:', error);
