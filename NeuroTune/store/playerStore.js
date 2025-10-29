@@ -14,15 +14,22 @@ const usePlayerStore = create((set, get) => {
     if (audioModeInitialized) return
     try {
       // Configure audio to continue playing in background and play in silent mode on iOS.
-      // Use a minimal, compatible audio mode configuration. Some expo-av versions
-      // have different sets of interruptionMode constants which can trigger
-      // "invalid value" errors; omitting them keeps this work across versions.
+      // Use explicit interruption mode constants and other flags to ensure
+      // background playback and proper ducking behavior across platforms.
+      // We use the Audio.* constants which are available in supported expo-av
+      // versions. Wrap in try/catch so older versions that lack these constants
+      // won't crash the app.
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
+        // Use interruption mode constants so other audio is ducked while playing
+        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS,
+        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
         shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+        // allow audio to continue when the app is backgrounded (standalone builds)
         staysActiveInBackground: true,
+        // route audio through the earpiece when appropriate on Android
+        playThroughEarpieceAndroid: true,
       })
       audioModeInitialized = true
     } catch (e) {
