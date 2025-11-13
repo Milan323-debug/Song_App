@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
+import { DEFAULT_ARTWORK_BG } from '../../constants/artwork';
 import COLORS from "../../constants/colors";
-import { DEFAULT_ARTWORK_BG } from '../../constants/artwork'
 
 export default StyleSheet.create({
   container: {
@@ -34,9 +34,9 @@ export default StyleSheet.create({
   },
   // smaller artwork for inline song rows (playlist detail, liked songs)
   songArtwork: {
-    width: 56,
-    height: 56,
-    borderRadius: 6,
+    width: 44,
+    height: 44,
+    borderRadius: 4,
     backgroundColor: DEFAULT_ARTWORK_BG,
   },
   cardRight: {
@@ -45,13 +45,13 @@ export default StyleSheet.create({
   },
   title: {
     color: COLORS.textPrimary,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700'
   },
   subtitle: {
     color: COLORS.textSecondary,
-    fontSize: 13,
-    marginTop: 6
+    fontSize: 12,
+    marginTop: 4
   },
   owner: {
     color: COLORS.placeholderText,
@@ -117,8 +117,8 @@ export default StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   playingArtwork: {
     borderWidth: 2,
@@ -126,15 +126,15 @@ export default StyleSheet.create({
   },
   itemText: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   playingText: {
     color: COLORS.neonAqua,
   },
   duration: {
     color: COLORS.textSecondary,
-    marginLeft: 8,
-    width: 48,
+    marginLeft: 6,
+    width: 40,
     textAlign: 'right',
   },
   duration: {
@@ -144,8 +144,8 @@ export default StyleSheet.create({
     textAlign: 'right',
   },
   menuButton: {
-    padding: 8,
-    marginLeft: 8,
+    padding: 6,
+    marginLeft: 6,
   },
   searchBoxWrap: {
     position: 'absolute',

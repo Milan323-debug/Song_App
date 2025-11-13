@@ -1,20 +1,21 @@
 // TabLayout.jsx (or .js)
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { Tabs, useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
-  View,
-  TouchableOpacity,
   Animated,
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Tabs, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import COLORS from "../../constants/colors";
-import { LinearGradient } from "expo-linear-gradient";
-import { useUiStore } from "../../store/uiStore";
 import PlayerContainer from "../../components/PlayerContainer";
+import COLORS from "../../constants/colors";
+import { useUiStore } from "../../store/uiStore";
 
 function CreateTabButton(props) {
   const setChooserVisible = useUiStore((s) => s.setChooserVisible);
@@ -274,18 +275,39 @@ export default function TabLayout() {
           },
 
           tabBarBackground: () => (
-            <LinearGradient
-              colors={[
-                "rgba(0, 0, 0, 0.98)",
-                "rgba(0, 0, 0, 1)",
-                "rgba(0, 0, 0, 0)",
-                "transparent",
-              ]}
-              locations={[0, 0.1, 0.9, 1]}
-              start={{ x: 0.5, y: 1 }}
-              end={{ x: 0.5, y: 0 }}
-              style={{ flex: 1 }}
-            />
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                // extend a bit more above the tab bar so the top edge blends/looks blurred
+                height: tabBarHeight + 6,
+                overflow: "hidden",
+              }}
+            >
+              {/* Blur the content behind the bottom navigator */}
+              <BlurView
+                intensity={100}
+                tint="dark"
+                style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+              />
+
+              {/* Dark translucent overlay at bottom to give a semi-opaque black bar */}
+              <LinearGradient
+                colors={["rgba(0,0,0,0.98)", "rgba(0,0,0,0.92)", "rgba(0,0,0,0)"]}
+                locations={[0, 0.3, 1]}
+                start={{ x: 0.5, y: 1 }}
+                end={{ x: 0.5, y: 0 }}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: tabBarHeight,
+                }}
+              />
+            </View>
           ),
         }}
       >

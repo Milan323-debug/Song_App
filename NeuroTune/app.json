@@ -27,9 +27,16 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "FOREGROUND_SERVICE"
       ],
-      "package": "com.kaisil.NeuroTune"
+      "package": "com.kaisil.NeuroTune",
+      "foregroundService": {
+        "notificationChannelId": "playback",
+        "notificationTitle": "NeuroTune is playing",
+        "notificationColor": "#1DB954",
+        "notificationIcon": "./assets/images/android-icon-monochrome.png"
+      }
     },
     "web": {
       "output": "static",
@@ -58,7 +65,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "01ed7f33-49f5-4e04-bb38-d8005eed03ff"
+        "projectId": "d48a08eb-e374-48d4-87d7-a6ec837f12a7"
       }
     }
   }

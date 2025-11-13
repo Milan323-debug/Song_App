@@ -1,6 +1,5 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { StyleSheet, View } from "react-native";
 import COLORS from "../constants/colors";
 
 export default function GradientBackground({
@@ -13,14 +12,15 @@ export default function GradientBackground({
 }) {
   const variants = {
     default: [
-      COLORS.backgroundDark || "#000000",
+      // top -> bottom: start lighter/transparent at the top and darken toward the bottom
+      "transparent",
       COLORS.background || "#071029",
-      COLORS.primary || "#00BBF9",
-      COLORS.cardBackground || "#002b54",
+      "rgba(0,0,0,0.7)",
+      COLORS.cardBackground || "#000000",
     ],
     teal: [
+      // keep teal variant but ensure it fades into cardBackground at the bottom
       COLORS.primary,
-      // mid stops
       COLORS.primaryDark || "#008fb3",
       COLORS.cardBackground,
     ],
@@ -52,8 +52,9 @@ export default function GradientBackground({
     <LinearGradient
       colors={colors}
       locations={stops}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
+  // render gradient top -> bottom so the bottom is the darkest
+  start={{ x: 0, y: 0 }}
+  end={{ x: 0, y: 1 }}
       style={[styles.root, style]}
     >
       {/* radial / circle accent behind for depth */}
@@ -92,7 +93,8 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.25)",  // increased darkness overlay
+    // stronger dark overlay to deepen the overall theme
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
   bottomFade: {
     position: "absolute",

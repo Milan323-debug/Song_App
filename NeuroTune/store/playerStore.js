@@ -1,82 +1,130 @@
 import { create } from 'zustand'
-import TrackPlayer, { State, Event } from 'react-native-track-player'
-import { setupTrackPlayer } from './trackPlayerSetup'
+// Use Expo AV for audio (provides Audio and Sound APIs)
+import { Audio } from 'expo-av'
 
 const usePlayerStore = create((set, get) => {
-  let progressInterval = null
-  let listeners = []
+  const soundRef = { current: null }
+  // optional promise that resolves when a new sound has finished creating
+  soundRef.initPromise = null
+  // queued seek when duration not yet known
+  let queuedSeekMillis = null
+  let audioModeInitialized = false
 
-  const startProgressTimer = () => {
-    stopProgressTimer()
-    progressInterval = setInterval(async () => {
-      try {
-        const position = await TrackPlayer.getPosition()
-        const duration = await TrackPlayer.getDuration()
-        const state = await TrackPlayer.getState()
-        set({ position: Math.floor((position || 0) * 1000), duration: Math.floor((duration || 0) * 1000), isPlaying: state === State.Playing })
-      } catch (e) {
-        // ignore polling errors
-      }
-    }, 1000)
-  }
-
-  const stopProgressTimer = () => {
-    if (progressInterval) { clearInterval(progressInterval); progressInterval = null }
-  }
-
-  const ensurePlayer = async () => {
+  const ensureAudioMode = async () => {
+    if (audioModeInitialized) return
     try {
-      await setupTrackPlayer()
-      // attach listeners once
-      if (listeners.length === 0) {
-        listeners.push(TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
-          // handle end of queue: mimic previous behavior (stop or repeat)
-          const q = get().queue || []
-          const idx = get().index
-          const repeatMode = get().repeatMode
-          if (repeatMode === 'one' && get().current) {
-            // replay same
-            const current = get().current
-            await TrackPlayer.reset()
-            await TrackPlayer.add({ id: current.id || 'current', url: current.url, title: current.title || current.name })
-            await TrackPlayer.play()
-          } else if (q && q.length > 0 && typeof idx === 'number') {
-            if (idx + 1 < q.length) {
-              const next = q[idx + 1]
-              await playTrack(next, q, idx + 1)
-            } else if (repeatMode === 'all') {
-              await playTrack(q[0], q, 0)
-            } else {
-              set({ isPlaying: false, current: null, position: 0 })
-              stopProgressTimer()
-            }
-          } else {
-            set({ isPlaying: false, current: null, position: 0 })
-            stopProgressTimer()
-          }
-        }))
+      // Configure audio to continue playing in background and play in silent mode on iOS.
+      // Construct the audio mode object defensively so older/newer expo-av versions
+      // that don't export certain interruption constants won't receive invalid values.
+      const mode = {
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: true,
+        playThroughEarpieceAndroid: true,
       }
+      if (typeof Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS !== 'undefined') {
+        mode.interruptionModeIOS = Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS
+      } else if (typeof Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX !== 'undefined') {
+        mode.interruptionModeIOS = Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX
+      }
+      if (typeof Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS !== 'undefined') {
+        mode.interruptionModeAndroid = Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS
+      }
+      await Audio.setAudioModeAsync(mode)
+      audioModeInitialized = true
     } catch (e) {
-      console.warn('ensurePlayer failed', e)
+      console.warn('Failed to set Audio mode', e)
     }
   }
 
   const playTrack = async (track, queue = null, index = 0) => {
     try {
-      await ensurePlayer()
-      // reset queue and load current track
-      await TrackPlayer.reset()
-      const item = {
-        id: track.id || `t_${Date.now()}`,
-        url: track.url,
-        title: track.title || track.name || 'Unknown',
-        artist: track.artist || track.uploader || '',
-        artwork: track.artwork || track.image || track.poster || null,
+      // ensure audio mode is configured for background playback
+      await ensureAudioMode()
+      // stop previous
+      if (soundRef.current) {
+        try { await soundRef.current.unloadAsync(); } catch (e) {}
+        soundRef.current = null
       }
-      await TrackPlayer.add(item)
-      await TrackPlayer.play()
-      set({ current: track, isPlaying: true, queue: queue || [track], index })
-      startProgressTimer()
+
+      // create and track init promise so callers (seek/resume/etc) can wait for the sound to be ready
+      const creation = Audio.Sound.createAsync({ uri: track.url }, { shouldPlay: true })
+      soundRef.initPromise = creation.then(({ sound }) => {
+        soundRef.current = sound
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status) return
+
+        // update shared playback state (position, duration, playing)
+        try {
+          const isPlaying = !!status.isPlaying
+          const position = typeof status.positionMillis === 'number' ? status.positionMillis : get().position || 0
+          const duration = typeof status.durationMillis === 'number' ? status.durationMillis : get().duration || 0
+          set({ isPlaying, position, duration })
+        } catch (e) {
+          // swallow
+        }
+
+        // if duration just became available and a queued seek exists, perform it
+        try {
+          if (typeof status.durationMillis === 'number' && queuedSeekMillis != null) {
+            const to = Math.max(0, Math.floor(queuedSeekMillis))
+            queuedSeekMillis = null
+            sound.setPositionAsync(to).catch(() => {})
+            set({ position: to })
+          }
+        } catch (e) {}
+
+        if (status.didJustFinish) {
+          // auto play next immediately (don't use JS timers which may be suspended in background)
+          const q = get().queue || []
+          const idx = get().index
+          const repeatMode = get().repeatMode
+          const shuffle = get().shuffle
+          const currentTrack = get().current
+
+          if (repeatMode === 'one' && currentTrack) {
+            // replay same track
+            playTrack(currentTrack, q, idx)
+          } else if (shuffle && q && q.length > 0) {
+            // pick a random index (avoid same when possible)
+            let nextIdx = idx
+            if (q.length === 1) nextIdx = 0
+            else {
+              while (nextIdx === idx) {
+                nextIdx = Math.floor(Math.random() * q.length)
+              }
+            }
+            playTrack(q[nextIdx], q, nextIdx)
+          } else if (q && q.length > 0 && idx != null) {
+            if (idx + 1 < q.length) {
+              const next = q[idx + 1]
+              playTrack(next, q, idx + 1)
+            } else {
+              // reached end of queue
+              if (repeatMode === 'all') {
+                // loop back to first track
+                playTrack(q[0], q, 0)
+              } else {
+                set({ isPlaying: false, current: null, position: 0 })
+              }
+            }
+          } else {
+            // finished
+            set({ isPlaying: false, current: null, position: 0 })
+          }
+        }
+        })
+
+        return sound
+      })
+
+      // await creation so playTrack doesn't return until sound is ready
+      try { await soundRef.initPromise } catch (e) { /* creation failed, handled below */ }
+      soundRef.initPromise = null
+
+      set({ current: track, isPlaying: true, queue: queue || [track], index: index })
     } catch (e) {
       console.warn('player playTrack error', e)
     }
@@ -84,24 +132,24 @@ const usePlayerStore = create((set, get) => {
 
   const pause = async () => {
     try {
-      await TrackPlayer.pause()
+      if (soundRef.initPromise) await soundRef.initPromise.catch(() => {})
+      if (soundRef.current) await soundRef.current.pauseAsync()
       set({ isPlaying: false })
     } catch (e) { console.warn('pause error', e) }
   }
 
   const resume = async () => {
     try {
-      await TrackPlayer.play()
+      if (soundRef.initPromise) await soundRef.initPromise.catch(() => {})
+      if (soundRef.current) await soundRef.current.playAsync()
       set({ isPlaying: true })
-      startProgressTimer()
     } catch (e) { console.warn('resume error', e) }
   }
 
   const stop = async () => {
     try {
-      await TrackPlayer.stop()
-      await TrackPlayer.reset()
-      stopProgressTimer()
+      if (soundRef.initPromise) await soundRef.initPromise.catch(() => {})
+      if (soundRef.current) { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); soundRef.current = null }
       set({ isPlaying: false, current: null, queue: [], index: null, position: 0, duration: 0 })
     } catch (e) { console.warn('stop error', e) }
   }
@@ -109,9 +157,31 @@ const usePlayerStore = create((set, get) => {
   const seek = async (millis) => {
     try {
       if (typeof millis !== 'number') return
-      const seconds = Math.max(0, millis / 1000)
-      await TrackPlayer.seekTo(seconds)
-      set({ position: Math.floor(seconds * 1000) })
+      // if a sound is currently being created, wait for it
+      if (soundRef.initPromise) {
+        await soundRef.initPromise.catch(() => {})
+        soundRef.initPromise = null
+      }
+      if (soundRef.current) {
+        // if we don't yet know duration (some sources), queue the seek until status reports duration
+        const curDuration = get().duration || 0
+        const to = Math.max(0, Math.floor(millis))
+        if (curDuration <= 0) {
+          queuedSeekMillis = to
+          // still update UI optimistically
+          set({ position: to })
+        } else {
+          try {
+            await soundRef.current.setPositionAsync(to)
+            set({ position: to })
+          } catch (e) {
+            console.warn('[playerStore] setPositionAsync failed', e)
+          }
+        }
+      } else {
+        // no sound available to seek - log for debugging
+        console.warn('[playerStore] seek called but no sound is loaded (soundRef.current null)')
+      }
     } catch (e) { console.warn('seek error', e) }
   }
 
@@ -130,20 +200,20 @@ const usePlayerStore = create((set, get) => {
           nextIdx = Math.floor(Math.random() * q.length)
         }
       }
-      await playTrack(q[nextIdx], q, nextIdx)
+      playTrack(q[nextIdx], q, nextIdx)
       return
     }
 
-    if (q && typeof idx === 'number' && idx + 1 < q.length) {
-      await playTrack(q[idx + 1], q, idx + 1)
+    if (q && idx != null && idx + 1 < q.length) {
+      playTrack(q[idx + 1], q, idx + 1)
     }
   }
 
   const previous = async () => {
     const q = get().queue || []
     const idx = get().index
-    if (q && typeof idx === 'number' && idx - 1 >= 0) {
-      await playTrack(q[idx - 1], q, idx - 1)
+    if (q && idx != null && idx - 1 >= 0) {
+      playTrack(q[idx - 1], q, idx - 1)
     }
   }
 
@@ -153,7 +223,7 @@ const usePlayerStore = create((set, get) => {
     position: 0,
     duration: 0,
     shuffle: false,
-    repeatMode: 'off', // 'off' | 'one' | 'all'
+    repeatMode: 'off', // 'off' | 'one' | 'all' (all not implemented specially here)
     queue: [],
     index: null,
     playTrack,

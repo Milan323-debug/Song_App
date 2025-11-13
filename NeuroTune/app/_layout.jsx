@@ -1,12 +1,12 @@
+import { useFonts } from "expo-font";
 import { SplashScreen, Stack, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import SafeScreen from "../components/SafeScreen";
-import { StatusBar } from "expo-status-bar";
-import { useFonts } from "expo-font";
 
-import { useAuthStore } from "../store/authStore";
+import { Audio } from 'expo-av';
 import { useEffect } from "react";
-import TrackPlayer from 'react-native-track-player'
+import { useAuthStore } from "../store/authStore";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -54,15 +54,32 @@ export default function RootLayout() {
     return () => clearTimeout(id);
   }, [user, token, segments, isCheckingAuth, router]);
 
-  // Register the native background playback service for TrackPlayer
+  // Configure Expo Audio for background playback
   useEffect(() => {
-    try {
-      // registerPlaybackService requires a module that exports the service function
-      TrackPlayer.registerPlaybackService(() => require('../service'))
-    } catch (e) {
-      // registration is a no-op in environments without native TrackPlayer
-      console.warn('TrackPlayer registerPlaybackService failed', e)
-    }
+    (async () => {
+      try {
+        const audioMode = {
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        }
+        // Add interruption mode flags only if the constants exist in this version of expo-av
+        if (typeof Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX !== 'undefined') {
+          audioMode.interruptionModeIOS = Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX
+        } else if (typeof Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS !== 'undefined') {
+          audioMode.interruptionModeIOS = Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS
+        }
+        if (typeof Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS !== 'undefined') {
+          audioMode.interruptionModeAndroid = Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS
+        }
+
+        await Audio.setAudioModeAsync(audioMode)
+      } catch (e) {
+        console.warn('Audio.setAudioModeAsync failed', e)
+      }
+    })();
   }, [])
 
   return (

@@ -1,14 +1,14 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, Image, TouchableOpacity, Alert, Modal, TouchableWithoutFeedback, TextInput, Animated, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store/authStore';
-import { API_URL } from '../../constants/api';
-import styles from '../../assets/styles/playlists.styles';
-import { DEFAULT_ARTWORK_URL } from '../../constants/artwork'
-import COLORS from '../../constants/colors';
 import { useRouter } from 'expo-router';
-import usePlayerStore from '../../store/playerStore';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, FlatList, Image, Keyboard, Modal, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import styles from '../../assets/styles/playlists.styles';
 import AddCircleButton from '../../components/AddCircleButton';
+import { API_URL } from '../../constants/api';
+import { DEFAULT_ARTWORK_URL } from '../../constants/artwork';
+import COLORS from '../../constants/colors';
+import { useAuthStore } from '../../store/authStore';
+import usePlayerStore from '../../store/playerStore';
 
 export default function UserSongs() {
   const { token, user } = useAuthStore();
@@ -255,11 +255,11 @@ export default function UserSongs() {
                 <Image source={{ uri: item.artworkUrl || item.artwork || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
             </View>
             <View style={styles.itemText}>
-              <Text style={[styles.title, { fontSize: 16 }]} numberOfLines={1}>{item.title}</Text>
-              <Text style={[styles.subtitle, { fontSize: 13 }]} numberOfLines={1}>{item.artist || 'Unknown artist'}</Text>
+              <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+              <Text style={styles.subtitle} numberOfLines={1}>{item.artist || 'Unknown artist'}</Text>
             </View>
             {/* Inline like/add button: toggles liked state for the user's Liked Songs */}
-            <AddCircleButton isAdded={likedSet.has(String(item._id))} onPress={() => toggleLike(item)} size={30} />
+            <AddCircleButton isAdded={likedSet.has(String(item._id))} onPress={() => toggleLike(item)} size={26} />
             <TouchableOpacity onPress={(e) => { e.stopPropagation(); openSongMenu(item); }} style={styles.menuButton}>
               <Ionicons name="ellipsis-vertical" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>

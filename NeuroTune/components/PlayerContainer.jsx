@@ -1,15 +1,91 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react'
-import { View, Text, TouchableOpacity, Animated, Dimensions, PanResponder, StyleSheet, Image, Modal, Pressable, FlatList } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { BlurView } from 'expo-blur'
+import { LinearGradient } from 'expo-linear-gradient'
+import React, { useEffect, useRef, useState } from 'react'
+import { Animated, Dimensions, Image, Modal, PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import  COLORS  from '../constants/colors'
-import { DEFAULT_ARTWORK_URL } from '../constants/artwork'
 import styles from '../assets/styles/playerContainer.styles'
+import { API } from '../constants/api'
+import { DEFAULT_ARTWORK_URL } from '../constants/artwork'
+import COLORS from '../constants/colors'
 import usePlayerStore from '../store/playerStore'
-import PlaybackModeButton from './PlaybackModeButton'
 import PlaybackExpanded from './PlaybackExpanded'
+import PlaybackModeButton from './PlaybackModeButton'
+
+// Client-side wrapper: call serverless endpoint and cache results in AsyncStorage.
+const CACHE_PREFIX = 'dominant:'
+
+function hexToRgb(hex) {
+  if (!hex) return null
+  const h = hex.replace('#', '')
+  const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16)
+  return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+}
+
+function relativeLuminance(r, g, b) {
+  const srgb = [r, g, b].map((v) => {
+    const s = v / 255
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2]
+}
+
+function getContrastColor(hex) {
+  try {
+    const rgb = hexToRgb(hex)
+    if (!rgb) return COLORS.white
+    const lum = relativeLuminance(rgb.r, rgb.g, rgb.b)
+    // WCAG recommends a contrast threshold. Use 0.179 as a mid point (approx)
+    return lum > 0.5 ? '#000000' : COLORS.white
+  } catch (e) {
+    return COLORS.white
+  }
+}
+
+async function fetchDominantFromServer(uri) {
+  if (!uri) return COLORS.playerContainer
+  try {
+    // Build endpoint using project's API helper. Make sure constants/API_URL is set to your server.
+    const ep = API(`api/dominant?url=${encodeURIComponent(uri)}`)
+    const res = await fetch(ep)
+    if (!res.ok) throw new Error('bad response')
+    const json = await res.json()
+    // The server now returns { color: '#rrggbb', textColor: '#ffffff' }
+    if (json && json.color) return { color: json.color, textColor: json.textColor }
+  } catch (e) {
+    // network/remote errors -> will fall back
+  }
+  // return object shape for consistency with server response
+  return { color: COLORS.playerContainer, textColor: getContrastColor(COLORS.playerContainer) }
+}
+
+async function getCachedOrFetch(uri) {
+  const key = CACHE_PREFIX + uri
+  try {
+    const raw = await AsyncStorage.getItem(key)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && parsed.color) return parsed
+    }
+  } catch (e) {
+    // ignore cache read errors
+  }
+  const res = await fetchDominantFromServer(uri)
+  // `res` may be either a string (old-server) or an object { color, textColor }
+  let color
+  let textColor
+  if (res && typeof res === 'object') {
+    color = res.color || COLORS.playerContainer
+    textColor = res.textColor || getContrastColor(color)
+  } else {
+    color = res || COLORS.playerContainer
+    textColor = getContrastColor(color)
+  }
+  const payload = { color, textColor }
+  try { await AsyncStorage.setItem(key, JSON.stringify(payload)) } catch (e) { /* ignore */ }
+  return payload
+}
 
 // Match the dark Songs screen palette
 const SONGS_BG = '#071019'
@@ -38,6 +114,10 @@ export default function PlayerContainer({ tabBarHeight }) {
   const panY = useRef(new Animated.Value(0)).current
   const [expanded, setExpanded] = useState(false)
   const progressAnim = useRef(new Animated.Value(0)).current
+  // background color handling for mini player (smooth cross-fade)
+  const [miniBg, setMiniBg] = useState(COLORS.playerContainer)
+  const overlayBgRef = useRef(COLORS.playerContainer)
+  const overlayOpacity = useRef(new Animated.Value(0)).current
   const miniProgressWidth = useRef(1)
   const topProgressWidth = useRef(0)
   const fullProgressWidth = useRef(0)
@@ -73,6 +153,37 @@ export default function PlayerContainer({ tabBarHeight }) {
       Animated.timing(trackFade, { toValue: 1, duration: 260, useNativeDriver: true }).start()
     }
     prevIdRef.current = current._id
+  }, [current])
+
+  // Update mini-player background color when the current track changes.
+  const [textColor, setTextColor] = useState(COLORS.white)
+  // overlay background color exposed to expanded player so it can reflect the live crossfade
+  const [overlayBgColor, setOverlayBgColor] = useState(overlayBgRef.current || COLORS.playerContainer)
+  useEffect(() => {
+    let mounted = true
+    if (!current) return
+    const uri = (current.artworkUrl && String(current.artworkUrl).trim().length > 0) ? current.artworkUrl : DEFAULT_ARTWORK_URL
+    ;(async () => {
+      const { color, textColor: tc } = await getCachedOrFetch(uri)
+      if (!mounted) return
+      try {
+        overlayBgRef.current = color
+        // update state so expanded player re-renders and receives the live overlay color
+        setOverlayBgColor(color)
+        overlayOpacity.setValue(0)
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 420, useNativeDriver: false }).start(() => {
+          // commit and reset overlay
+          setMiniBg(color)
+          setTextColor(tc || COLORS.white)
+          overlayOpacity.setValue(0)
+        })
+      } catch (e) {
+        // ignore animation errors
+        setMiniBg(color)
+        setTextColor(tc || COLORS.white)
+      }
+    })()
+    return () => { mounted = false }
   }, [current])
 
   // Mode UI state and helpers (hooks must be called unconditionally)
@@ -219,23 +330,25 @@ export default function PlayerContainer({ tabBarHeight }) {
       {/* Make mini-player non-interactive when expanded so it doesn't steal touches */}
       <Animated.View
         pointerEvents={expanded ? 'none' : 'auto'}
-        style={[styles.miniContainer, { bottom: baseBottom, opacity: miniOpacity }]}
+        style={[styles.miniContainer, { bottom: baseBottom, opacity: miniOpacity, backgroundColor: miniBg }]}
       > 
+        {/* overlay used to cross-fade to the next track color */}
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: overlayBgColor, opacity: overlayOpacity, borderRadius: styles.miniContainer.borderTopLeftRadius }]} />
         <TouchableOpacity activeOpacity={0.9} style={styles.miniInner} onPress={expand}>
           <Animated.View style={{ opacity: trackFade }}>
             <Image source={{ uri: (current.artworkUrl && String(current.artworkUrl).trim().length > 0) ? current.artworkUrl : DEFAULT_ARTWORK_URL }} style={styles.miniArtPlaceholder} />
           </Animated.View>
 
           <View style={styles.miniInfo}>
-            <Text style={styles.title} numberOfLines={1}>{current.title}</Text>
-            <Text style={styles.artist} numberOfLines={1}>{current.artist}</Text>
+            <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>{current.title}</Text>
+            <Text style={[styles.artist, { color: textColor }]} numberOfLines={1}>{current.artist}</Text>
             {/* removed mini progress strip to free vertical space for title/artist */}
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <PlaybackModeButton style={styles.modeBtnSmall} />
             <TouchableOpacity onPress={() => (isPlaying ? pause() : resume())} style={styles.miniPlayBtnSmall} accessibilityLabel={isPlaying ? 'Pause' : 'Play'}>
-              <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color={COLORS.white} />
+              <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color={textColor || COLORS.white} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -269,6 +382,13 @@ export default function PlayerContainer({ tabBarHeight }) {
         setMeasuredFullWidth={setMeasuredFullWidth}
         fullProgressWidth={fullProgressWidth}
         collapse={collapse}
+        /* committed mini background color */
+        bgColor={miniBg}
+        /* overlay color used during the cross-fade */
+        overlayBg={overlayBgColor}
+        /* pass the animated opacity value so expanded view can cross-fade */
+        overlayOpacity={overlayOpacity}
+        bgTextColor={textColor}
         formatTime={formatTime}
       />
     </View>

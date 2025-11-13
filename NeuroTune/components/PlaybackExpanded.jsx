@@ -10,10 +10,12 @@ import {
   PanResponder,
   Alert,
   Share,
+  StyleSheet,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { Audio } from 'expo-av'
+import { BlurView } from 'expo-blur'
 import COLORS from '../constants/colors'
 import styles from '../assets/styles/playerContainer.styles'
 import usePlayerStore from '../store/playerStore'
@@ -35,7 +37,57 @@ export default function PlaybackExpanded(props) {
     fullProgressWidth,
     collapse,
     formatTime,
+    overlayBg,
+    overlayOpacity,
   } = props
+
+  // background color and text color passed from PlayerContainer
+  const bgColor = props.bgColor || COLORS.primary || COLORS.playerContainer
+  const bgTextColor = props.bgTextColor || COLORS.textPrimary || COLORS.white
+  // prefer overlayBg (live crossfade color) when available so expanded view updates immediately
+  const effectiveBg = overlayBg || bgColor
+
+  
+
+  function clamp(v, lo = 0, hi = 255) { return Math.max(lo, Math.min(hi, v)) }
+  function shadeHex(hex, percent) {
+    try {
+      const h = String(hex || '').replace('#', '')
+      const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h
+      const r = parseInt(full.slice(0,2), 16)
+      const g = parseInt(full.slice(2,4), 16)
+      const b = parseInt(full.slice(4,6), 16)
+      const factor = 1 + percent
+      const nr = clamp(Math.round(r * factor))
+      const ng = clamp(Math.round(g * factor))
+      const nb = clamp(Math.round(b * factor))
+      const toHex = v => v.toString(16).padStart(2, '0')
+      return `#${toHex(nr)}${toHex(ng)}${toHex(nb)}`
+    } catch (e) {
+      return hex
+    }
+  }
+
+  // build a gentle gradient based on the artwork color (prefer live overlay)
+  const gradientColors = [
+    effectiveBg,
+    shadeHex(effectiveBg, 0.85), // slightly darker
+    shadeHex(effectiveBg, 0.6),
+    COLORS.cardBackground || COLORS.background,
+  ]
+
+  function hexToRgba(hex, alpha = 0.2) {
+    try {
+      let h = String(hex || '').replace('#', '')
+      if (h.length === 3) h = h.split('').map(c => c + c).join('')
+      const r = parseInt(h.slice(0,2), 16)
+      const g = parseInt(h.slice(2,4), 16)
+      const b = parseInt(h.slice(4,6), 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    } catch (e) {
+      return `rgba(0,0,0,${alpha})`
+    }
+  }
 
   // local UI state for like button (keeps UI responsive). In a full app this would
   // call an API or update persistent store; here we keep it local and optimistic.
@@ -269,11 +321,15 @@ export default function PlaybackExpanded(props) {
       ]}
     >
       <LinearGradient
-        colors={[COLORS.primary, COLORS.background]}
+        colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={styles.gradientBg}
+        style={styles.fullBg}
       />
+      {/* animated overlay color (crossfade) - parent provides overlayBg and overlayOpacity */}
+      {overlayBg && overlayOpacity && (
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: overlayBg, opacity: overlayOpacity }]} />
+      )}
 
       {/* --- Header (collapse + title) --- */}
       <View style={styles.fullHeader}>
@@ -288,17 +344,37 @@ export default function PlaybackExpanded(props) {
           />
         </View>
         <TouchableOpacity onPress={collapse} style={styles.headerBtn}>
-          <Ionicons name="chevron-down" size={28} color={COLORS.textPrimary} />
+          <Ionicons name="chevron-down" size={28} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Now Playing</Text>
+        <Text style={[styles.headerTitle, { color: bgTextColor }]} numberOfLines={1}>Now Playing</Text>
         <View style={{ width: 28 }} />
       </View>
 
       <Animated.ScrollView
         style={{ flex: 1 }}
         nestedScrollEnabled={true}
+        scrollEnabled={true}
+        showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.fullContent, { paddingBottom: 120, alignItems: 'stretch' }]}
+        // Ensure the ScrollView captures gestures that start below the header/drag area
+        // so top drags (header/handle) still collapse the panel.
+        onStartShouldSetResponderCapture={(e) => {
+          try {
+            const ev = e && e.nativeEvent
+            const y = (ev && (typeof ev.locationY === 'number' ? ev.locationY : ev.pageY)) || 0
+            // keep top ~120px reserved for header/drag handle
+            return typeof y === 'number' ? y > 120 : true
+          } catch (err) { return true }
+        }}
+        onMoveShouldSetResponderCapture={(e) => {
+          try {
+            const ev = e && e.nativeEvent
+            const y = (ev && (typeof ev.locationY === 'number' ? ev.locationY : ev.pageY)) || 0
+            return typeof y === 'number' ? y > 120 : true
+          } catch (err) { return true }
+        }}
+        directionalLockEnabled={true}
+        contentContainerStyle={[styles.fullContent, { paddingBottom: 120, alignItems: 'stretch', flexGrow: 1 }]}
       >
         {/* artwork + title */}
         <Animated.View
@@ -313,6 +389,11 @@ export default function PlaybackExpanded(props) {
             },
           ]}
         >
+          {/* radial accent behind artwork */}
+          <Animated.View pointerEvents="none" style={{ position: 'absolute', alignSelf: 'center', justifyContent: 'center', alignItems: 'center', width: artSize * 1.6, height: artSize * 1.6, borderRadius: Math.round(artSize * 0.8), backgroundColor: hexToRgba(effectiveBg, 0.22), transform: [{ scale: anim.interpolate({ inputRange: [0,1], outputRange: [0.8, 1] }) }], opacity: overlayOpacity ? overlayOpacity : 1 }} />
+          {/* subtle blur on top of the radial accent for depth */}
+          <BlurView intensity={20} tint="dark" style={{ position: 'absolute', alignSelf: 'center', width: artSize * 1.6, height: artSize * 1.6, borderRadius: Math.round(artSize * 0.8) }} />
+
           {current.artworkUrl && String(current.artworkUrl).trim().length > 0 ? (
             <Image
               source={{ uri: current.artworkUrl }}
@@ -325,13 +406,13 @@ export default function PlaybackExpanded(props) {
         </Animated.View>
 
         <View justifyContent="center" alignItems="center" >
-          <Text style={styles.fullTitle} numberOfLines={1}>{current.title}</Text>
-          <Text style={styles.fullArtist} numberOfLines={1}>{current.artist}</Text>
+          <Text style={[styles.fullTitle, { color: bgTextColor }]} numberOfLines={1}>{current.title}</Text>
+          <Text style={[styles.fullArtist, { color: bgTextColor }]} numberOfLines={1}>{current.artist}</Text>
         </View>
 
         {/* progress + controls (unchanged other than remaining inside ScrollView) */}
         <View style={styles.progressContainer}>
-          <Text style={styles.timeText}>{formatTime(position)}</Text>
+          <Text style={[styles.timeText, { color: bgTextColor }]}>{formatTime(position)}</Text>
           <View
             style={styles.progressBarWrap}
             {...(internalPan.current && internalPan.current.panHandlers)}
@@ -366,8 +447,8 @@ export default function PlaybackExpanded(props) {
         </View>
 
         <View style={styles.controlsRowLarge}>
-          <TouchableOpacity onPress={() => setShuffle(!shuffle)} style={styles.ctrlBtn}><Ionicons name="shuffle" size={22} color={shuffle ? COLORS.primary : COLORS.textPrimary} /></TouchableOpacity>
-          <TouchableOpacity onPress={previous} style={styles.ctrlBtn}><Ionicons name="play-skip-back" size={28} color={COLORS.textPrimary} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShuffle(!shuffle)} style={styles.ctrlBtn}><Ionicons name="shuffle" size={22} color={shuffle ? COLORS.primary : COLORS.white} /></TouchableOpacity>
+          <TouchableOpacity onPress={previous} style={styles.ctrlBtn}><Ionicons name="play-skip-back" size={28} color={COLORS.white} /></TouchableOpacity>
 
           {/* Play button: smaller triangle and slightly shifted right inside the circle */}
               <TouchableOpacity onPress={() => (isPlaying ? pause() : resume())} style={[styles.ctrlBtn, styles.playBigBtn]}>
@@ -376,8 +457,8 @@ export default function PlaybackExpanded(props) {
                 </View>
               </TouchableOpacity>
 
-          <TouchableOpacity onPress={next} style={styles.ctrlBtn}><Ionicons name="play-skip-forward" size={28} color={COLORS.textPrimary} /></TouchableOpacity>
-          <TouchableOpacity onPress={() => setRepeatMode(repeatMode === 'all' ? 'off' : 'all')} style={styles.ctrlBtn}><Ionicons name="repeat" size={22} color={repeatMode && repeatMode !== 'off' ? COLORS.primary : COLORS.textPrimary} /></TouchableOpacity>
+          <TouchableOpacity onPress={next} style={styles.ctrlBtn}><Ionicons name="play-skip-forward" size={28} color={COLORS.white} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setRepeatMode(repeatMode === 'all' ? 'off' : 'all')} style={styles.ctrlBtn}><Ionicons name="repeat" size={22} color={repeatMode && repeatMode !== 'off' ? COLORS.primary : COLORS.white} /></TouchableOpacity>
         </View>
 
         {/* Option icons row: add horizontal padding/margins so icons are well spaced from phone edges */}

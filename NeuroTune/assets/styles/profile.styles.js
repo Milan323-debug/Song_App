@@ -1,5 +1,5 @@
 // styles/profile.styles.js
-import { StyleSheet, Dimensions } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 import COLORS from "../../constants/colors";
 
 const { width } = Dimensions.get('window');
@@ -141,16 +141,31 @@ const styles = StyleSheet.create({
   },
   // recent uploads
   recentCard: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
+    // compact card for recent uploads
+    width: 96,
+    height: 96,
+    borderRadius: 10,
     backgroundColor: COLORS.cardBackground,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
     shadowColor: COLORS.black,
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 14,
+    elevation: 8,
     overflow: 'hidden',
+  },
+  recentTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    width: 96,
+    marginTop: 8,
+  },
+  recentArtist: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    width: 96,
   },
   logoutButton: {
     flexDirection: 'row',

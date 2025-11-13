@@ -1,15 +1,16 @@
-import { View, Text, TouchableOpacity, Alert, Image, ScrollView, ActivityIndicator, RefreshControl, FlatList } from 'react-native'
-import React, { useEffect, useState } from 'react'
-import { LinearGradient } from 'expo-linear-gradient'
-import Reanimated, { FadeIn } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
-import COLORS from '../../constants/colors'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useRouter } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { ActivityIndicator, Alert, FlatList, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import Reanimated, { FadeIn } from 'react-native-reanimated'
 import styles from '../../assets/styles/profile.styles'
-import { useAuthStore } from '../../store/authStore'
-import { API_URL, API } from '../../constants/api'
+import { API_URL } from '../../constants/api'
 import { DEFAULT_ARTWORK_URL, DEFAULT_PROFILE_IMAGE } from '../../constants/artwork'
+import COLORS from '../../constants/colors'
+import { useAuthStore } from '../../store/authStore'
+import usePlayerStore from '../../store/playerStore'
 
 export default function Profile() {
   const { logout, token, user } = useAuthStore()
@@ -181,6 +182,10 @@ export default function Profile() {
     }
   }, [user, token])
 
+  const playTrack = usePlayerStore((s) => s.playTrack)
+  const current = usePlayerStore((s) => s.current)
+  const playerIsPlaying = usePlayerStore((s) => s.isPlaying)
+
   // (no glow animation) static avatar wrapper
 
   if (loading && !userData) {
@@ -302,18 +307,58 @@ export default function Profile() {
               horizontal
               showsHorizontalScrollIndicator={false}
               keyExtractor={(i) => i._id}
-              renderItem={({ item, index }) => (
-                <Reanimated.View entering={FadeIn.delay(index * 80).duration(400)} style={{ marginRight: 12 }}>
-                  {/* Presentational card only: removed navigation link so it's not clickable */}
-                  <View>
-                    <View style={styles.recentCard}>
-                      <Image source={{ uri: item.artworkUrl || DEFAULT_ARTWORK_URL }} style={{ width: '100%', height: '100%' }} />
+              renderItem={({ item, index }) => {
+                const isPlaying = current && String(current._id) === String(item._id) && playerIsPlaying
+                return (
+                  <Reanimated.View entering={FadeIn.delay(index * 80).duration(400)} style={{ marginRight: 12 }}>
+                    {/* compact presentational card with subtle overlay for legibility and controls */}
+                    <View>
+                      <View style={styles.recentCard}>
+                        <Image source={{ uri: item.artworkUrl || DEFAULT_ARTWORK_URL }} style={{ width: '100%', height: '100%' }} />
+                        {/* subtle gradient overlay to improve text contrast */}
+                        <LinearGradient
+                          colors={["transparent", "rgba(0,0,0,0.28)"]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 0, y: 1 }}
+                          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 34 }}
+                        />
+
+                        {/* centered play overlay */}
+                        <TouchableOpacity
+                          onPress={async () => {
+                            try {
+                              await playTrack(item, recentSongs, index)
+                            } catch (e) {
+                              console.warn('play recent', e)
+                            }
+                          }}
+                          style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '50%',
+                            transform: [{ translateX: -20 }, { translateY: -20 }],
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: 'rgba(0,0,0,0.45)',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color={COLORS.white} />
+                        </TouchableOpacity>
+
+                        {/* duration badge */}
+                        <View style={{ position: 'absolute', right: 6, bottom: 6, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                          <Text style={{ color: COLORS.white, fontSize: 11 }}>{formatDuration(item.duration)}</Text>
+                        </View>
+                      </View>
+                      <Text numberOfLines={1} style={styles.recentTitle}>{item.title}</Text>
+                      <Text numberOfLines={1} style={styles.recentArtist}>{item.artist || ''}</Text>
                     </View>
-                    <Text numberOfLines={1} style={{ color: COLORS.textPrimary, marginTop: 8, width: 120 }}>{item.title}</Text>
-                    <Text numberOfLines={1} style={{ color: COLORS.textSecondary, fontSize: 12, width: 120 }}>{item.artist || ''}</Text>
-                  </View>
-                </Reanimated.View>
-              )}
+                  </Reanimated.View>
+                )
+              }}
             />
           ) : (
               <View style={{ padding: 24, alignItems: 'center' }}>
@@ -324,4 +369,13 @@ export default function Profile() {
       </View>
     </ScrollView>
   )
+}
+
+function formatDuration(d) {
+  if (d === undefined || d === null) return ''
+  // if duration looks like milliseconds (large), convert to seconds
+  const seconds = d > 1000 ? Math.floor(d / 1000) : Math.floor(d)
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }

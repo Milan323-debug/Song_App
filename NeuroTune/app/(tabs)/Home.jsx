@@ -1,36 +1,36 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
+import { Ionicons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useRouter } from 'expo-router'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  Image,
-  FlatList,
-  Dimensions,
-  Animated,
-  ActivityIndicator,
-  RefreshControl,
-  StyleSheet,
   ActionSheetIOS,
-  Platform,
-  TextInput,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  Alert,
+  Platform,
+  RefreshControl,
+  ScrollView,
   Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from 'react-native'
-import { Pressable } from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
+import AddCircleButton from '../../components/AddCircleButton'
+import { API } from '../../constants/api'
+import { DEFAULT_ARTWORK_BG, DEFAULT_ARTWORK_URL, DEFAULT_PROFILE_IMAGE } from '../../constants/artwork'
 import COLORS from '../../constants/colors'
 import { useAuthStore } from '../../store/authStore'
 import usePlayerStore from '../../store/playerStore'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
-import { API } from '../../constants/api'
-import AddCircleButton from '../../components/AddCircleButton'
-import { DEFAULT_ARTWORK_URL, DEFAULT_ARTWORK_BG, DEFAULT_PROFILE_IMAGE } from '../../constants/artwork'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 const H_PAD = 14
@@ -38,9 +38,13 @@ const GAP = 10
 // Keep two-column width at original value (do not reduce horizontal size)
 const TWO_COL_W = Math.round((SCREEN_W - H_PAD * 2 - GAP) / 2)
 // (see-section items use TWO_COL_W directly)
-// smaller hero for a more compact, Spotify-like look
-const HERO_W = Math.round(SCREEN_W * 0.46)
-const HERO_H = Math.round(HERO_W * 0.9)
+// size used for recent artwork and (now) hero cards to keep a consistent look
+const RECENT_CARD_W = 110
+// smaller hero for a more compact, Spotify-like look — match recent card size
+const HERO_W = RECENT_CARD_W
+const HERO_H = RECENT_CARD_W
+// width used for the "See what others made" cards; slightly reduce so two columns have breathing room
+const SEE_CARD_W = Math.round(TWO_COL_W - 6)
 const RECENTS_KEY = 'recentHistory_v1'
 
 // Small presentational components (memoized)
@@ -197,9 +201,18 @@ export default function Home() {
   const scrollY = useRef(new Animated.Value(0)).current
   const scrollXRef = useRef(new Animated.Value(0))           // <<--- fixed: create scrollXRef
   const heroPagerRef = useRef(null)
+  const lastHeroOffsetRef = useRef(0)
   const [heroIndex, setHeroIndex] = useState(0)
 
   useEffect(() => { fetchData(); loadRecents(); }, [])
+
+  // restore hero scroll position if the ScrollView remounts
+  useEffect(() => {
+    const to = lastHeroOffsetRef.current || 0
+    if (heroPagerRef.current && typeof heroPagerRef.current.scrollTo === 'function') {
+      try { heroPagerRef.current.scrollTo({ x: to, animated: false }) } catch (e) {}
+    }
+  }, [featured.length])
 
   // load recent searches + trending on mount
   useEffect(() => {
@@ -677,39 +690,40 @@ export default function Home() {
             {/* Hero pager (horizontal) */}
             <View style={styles.heroWrapper}>
               {loading ? (
-                <FlatList
+                <ScrollView
                   horizontal
-                  data={[1, 2]}
-                  keyExtractor={(i) => String(i)}
                   showsHorizontalScrollIndicator={false}
-                  renderItem={() => <Skeleton w={HERO_W} h={HERO_H} style={{ marginLeft: H_PAD }} />}
-                />
+                  contentContainerStyle={{ paddingLeft: H_PAD }}
+                >
+                  {[1, 2].map((_, i) => <Skeleton key={i} w={HERO_W} h={HERO_H} style={{ marginLeft: H_PAD }} />)}
+                </ScrollView>
               ) : (
-                <FlatList
+                // Use Animated.ScrollView to avoid FlatList virtualization re-renders
+                // which can reset horizontal position in nested lists.
+                <Animated.ScrollView
                   ref={heroPagerRef}
                   horizontal
-                  pagingEnabled
                   decelerationRate="fast"
                   snapToAlignment="start"
                   snapToInterval={HERO_W + 12}
                   showsHorizontalScrollIndicator={false}
-                  data={featured}
-                  keyExtractor={i => i.id}
-                  renderItem={({ item }) => <HeroCard item={item} onPress={onPressHero} />}
+                  contentContainerStyle={{ paddingLeft: H_PAD, paddingRight: H_PAD }}
                   onMomentumScrollEnd={onHeroMomentum}
-                  onScroll={Animated.event(
-                    [{ nativeEvent: { contentOffset: { x: scrollXRef.current } } }], // <<-- wired scrollXRef here
-                    { useNativeDriver: false }
-                  )}
+                  onScroll={(e) => {
+                    const x = e.nativeEvent.contentOffset.x || 0
+                    lastHeroOffsetRef.current = x
+                    // keep animated value in sync
+                    try { scrollXRef.current.setValue(x) } catch (err) {}
+                  }}
                   scrollEventThrottle={16}
-                  contentContainerStyle={{ paddingLeft: H_PAD }}
-                />
+                >
+                  {(featured || []).map((item) => (
+                    <HeroCard key={item.id} item={item} onPress={onPressHero} />
+                  ))}
+                </Animated.ScrollView>
               )}
 
-              {/* dots indicator */}
-              <View style={styles.dotsRow}>
-                {(featured || []).map((_, i) => <View key={i} style={[styles.dot, i === heroIndex ? styles.dotActive : null]} />)}
-              </View>
+              {/* simplified: removed dot indicator for a cleaner hero section */}
             </View>
 
             {/* recents horizontal list */}
@@ -776,9 +790,10 @@ export default function Home() {
               // IMPORTANT: do not add horizontal padding here — parent `seeSection`
               // already provides `paddingHorizontal: H_PAD` so items align with the top grid
               columnWrapperStyle={{ justifyContent: 'space-between' }}
-                contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
+              contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
               renderItem={({ item }) => (
-                <View style={{ width: TWO_COL_W, marginBottom: GAP }}>
+                // use SEE_CARD_W to leave breathing room between two columns
+                <View style={{ width: SEE_CARD_W, marginBottom: GAP + 6 }}>
                   <SeeGridCard item={item} onPress={onPressSmall} />
                 </View>
               )}
@@ -814,7 +829,7 @@ export default function Home() {
                     accessibilityLabel="Search input"
                     autoFocus
                   />
-                  {!!searchQuery && (
+                  {Boolean(searchQuery) && (
                     <TouchableOpacity onPress={() => { setSearchQuery(''); performSearch('') }} accessibilityRole="button" accessibilityLabel="Clear search" style={{ paddingLeft: 8 }}>
                       <Ionicons name="close" size={18} color={COLORS.primary} />
                     </TouchableOpacity>
@@ -1087,15 +1102,17 @@ const styles = StyleSheet.create({
   rowSub: { color: COLORS.textSecondary, fontSize: 11, marginTop: 3 },
 
   sectionHeader: { paddingHorizontal: H_PAD, marginTop: 8, marginBottom: 4 },
-  bigTitle: { color: COLORS.textPrimary, fontSize: 26, fontWeight: '900' },
+  // reduced heading size to make the hero section less visually dominant
+  bigTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '900' },
 
   heroWrapper: { paddingVertical: 6 },
   heroCard: { width: HERO_W, height: HERO_H, borderRadius: 12, overflow: 'hidden', marginRight: 12 },
   heroImg: { width: '100%', height: '100%' },
   heroOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   heroLabel: { position: 'absolute', left: 12, bottom: 12 },
-  heroTitle: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  heroDesc: { color: 'rgba(255,255,255,0.85)', marginTop: 4, fontSize: 11 },
+  // slightly reduce hero card text to better match the section heading
+  heroTitle: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  heroDesc: { color: 'rgba(255,255,255,0.85)', marginTop: 4, fontSize: 10 },
 
   dotsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: H_PAD, marginTop: 8 },
   dot: { width: 6, height: 6, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.12)', marginRight: 6 },
@@ -1103,10 +1120,11 @@ const styles = StyleSheet.create({
 
   section: { paddingVertical: 8, paddingTop: 12 },
   sectionTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '800', paddingLeft: H_PAD, marginBottom: 8 },
-  recentItem: { marginRight: 12, width: 110, paddingLeft: H_PAD },
-  recentArtwork: { width: 110, height: 110, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.02)' },
+  // remove internal left padding so the list's contentContainerStyle controls the left inset
+  recentItem: { marginRight: 12, width: RECENT_CARD_W },
+  recentArtwork: { width: RECENT_CARD_W, height: RECENT_CARD_W, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.02)' },
   recentImage: { width: '100%', height: '100%' },
-  recentTitle: { color: COLORS.textPrimary, marginTop: 8, width: 110, fontSize: 12 },
+  recentTitle: { color: COLORS.textPrimary, marginTop: 8, width: RECENT_CARD_W, fontSize: 12 },
 
   row2: { flexDirection: 'row', paddingHorizontal: H_PAD, justifyContent: 'space-between', marginBottom: 12 },
   cardSmall: {
@@ -1122,7 +1140,6 @@ const styles = StyleSheet.create({
   },
   // reduce vertical height (keep horizontal width intact)
   // reduce vertical height more to make cards shorter while preserving width
-  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.62), borderRadius: 10, resizeMode: 'cover', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
   cardSmallTitle: { color: COLORS.textPrimary, fontWeight: '700', marginTop: 6, fontSize: 13 },
 
   miniContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, pointerEvents: 'box-none' },
@@ -1139,15 +1156,17 @@ const styles = StyleSheet.create({
   seeSection: { paddingHorizontal: H_PAD, marginTop: 0, marginBottom: 14, paddingTop: 12 },
   seeTitle: { color: COLORS.textPrimary, fontSize: 22, fontWeight: '900', marginBottom: 14 },
   seeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  seeCard: { width: TWO_COL_W, borderRadius: 10, overflow: 'hidden', backgroundColor: 'transparent' },
-  // MATCH the main grid card's image aspect ratio so rows align visually.
-  // Using same aspect multiplier as cardSmallImg: ~0.62 (keeps height consistent)
-  seeImgWrap: { width: TWO_COL_W, height: Math.round(TWO_COL_W * 0.62), borderRadius: 10, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.02)' },
+  // keep the "See others" cards flat: no shadow or elevation
+  seeCard: { width: SEE_CARD_W, borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent', shadowColor: 'transparent', shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 },
+  // Make the "See others" cards square and slightly larger for emphasis
+  // use transparent background so artwork retains original colors (not darkened)
+  seeImgWrap: { width: SEE_CARD_W, height: Math.round(SEE_CARD_W), borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent' },
   seeImg: { width: '100%', height: '100%', borderRadius: 0 },
   seeOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-  seeOverlaySimple: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.36)' },
+  // remove heavy dark overlay so artwork keeps original color
+  seeOverlaySimple: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'transparent' },
   seeBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.36)', padding: 6, borderRadius: 8 },
-  seeCardTitle: { color: COLORS.textPrimary, fontWeight: '800', marginTop: 8, fontSize: 15 },
+  seeCardTitle: { color: COLORS.textPrimary, fontWeight: '800', marginTop: 8, fontSize: 16 },
   seeCardSub: { color: COLORS.textSecondary, marginTop: 4, fontSize: 12, opacity: 0.95 },
 
   // Search overlay styles
