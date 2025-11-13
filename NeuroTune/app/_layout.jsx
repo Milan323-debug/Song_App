@@ -6,6 +6,7 @@ import { useFonts } from "expo-font";
 
 import { useAuthStore } from "../store/authStore";
 import { useEffect } from "react";
+import TrackPlayer from 'react-native-track-player'
 
 SplashScreen.preventAutoHideAsync();
 
@@ -52,6 +53,17 @@ export default function RootLayout() {
 
     return () => clearTimeout(id);
   }, [user, token, segments, isCheckingAuth, router]);
+
+  // Register the native background playback service for TrackPlayer
+  useEffect(() => {
+    try {
+      // registerPlaybackService requires a module that exports the service function
+      TrackPlayer.registerPlaybackService(() => require('../service'))
+    } catch (e) {
+      // registration is a no-op in environments without native TrackPlayer
+      console.warn('TrackPlayer registerPlaybackService failed', e)
+    }
+  }, [])
 
   return (
     <SafeAreaProvider>

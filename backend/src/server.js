@@ -9,6 +9,7 @@ import songRoutes from "./routes/song.routes.js";
 import playlistRoutes from "./routes/playlist.routes.js";
 import protectRoute from "./middleware/auth.middleware.js";
 import notificationRoutes from "./routes/notification.routes.js";
+import dominantRoutes from "./routes/dominant.routes.js";
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/songs", songRoutes);
 app.use("/api/playlists", playlistRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/dominant", dominantRoutes);
 
 
 app.use((err, req, res, next) => {

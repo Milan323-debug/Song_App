@@ -24,5 +24,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.0",
     "multer": "^2.0.1"
+    ,
+    "node-vibrant": "^3.2.0",
+    "node-fetch": "^3.3.1"
   }
 }
