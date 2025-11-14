@@ -250,7 +250,7 @@ export default function UserSongs() {
               const idx = list.findIndex(s => String(s._id || s.id) === String(item._id || item.id))
               playTrack && playTrack(item, list.length ? list : [item], idx >= 0 ? idx : 0)
             } catch (e) { console.warn('play from UserSongs failed', e) }
-          }} style={styles.item} onLongPress={() => openSongMenu(item)}>
+          }} style={[styles.item, styles.likedItem]} onLongPress={() => openSongMenu(item)}>
             <View>
                 <Image source={{ uri: item.artworkUrl || item.artwork || DEFAULT_ARTWORK_URL }} style={styles.songArtwork} />
             </View>

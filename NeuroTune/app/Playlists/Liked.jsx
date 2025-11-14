@@ -233,7 +233,7 @@ export default function LikedSongs() {
   const renderItem = useCallback(({ item }) => {
     const isPlaying = current && current._id === item._id
     return (
-      <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
+      <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={[styles.item, styles.likedItem]} activeOpacity={0.8}>
         <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover || DEFAULT_ARTWORK_URL }} style={[styles.songArtwork, isPlaying && styles.playingArtwork]} />
         <View style={styles.itemText}>
           <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
@@ -250,7 +250,7 @@ export default function LikedSongs() {
   const keyExtractor = useCallback((i) => String(i._id || i.id || i.title), [])
 
   // Reanimated-driven header interpolation
-  const HEADER_MAX = 220
+  const HEADER_MAX = 260
   const HEADER_MIN = 80
   const HEADER_SCROLL = HEADER_MAX - HEADER_MIN
 
@@ -444,7 +444,9 @@ export default function LikedSongs() {
   )
 
   return (
-    <GradientBackground variant="teal" bottomDark={true}>
+    // use a short bottom fade on the Liked screen so the bottom gradient
+    // doesn't visually reach up and hide the header artwork
+    <GradientBackground variant="teal" bottomDark={true} bottomFade={true} bottomFadeHeight={80}>
       <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
         {/* header overlay - positioned absolute so list scrolls under it */}
         <Reanimated.View style={[styles.header, headerStyle]} >
@@ -620,8 +622,11 @@ export default function LikedSongs() {
           </Pressable>
         </Modal>
 
-        {/* dark bottom overlay to reduce brightness and emulate Spotify-style footer */}
-        <View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, bottom: 0, height: 220, backgroundColor: 'transparent' }} />
+        {/* dark bottom overlay to reduce brightness and emulate Spotify-style footer.
+            Use an explicitly positioned bottom overlay (not absoluteFill) so it
+            sits at the bottom and does not cover the header/banner. Reduce
+            height to 80 so it doesn't reach up into the artwork area. */}
+        <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 80, backgroundColor: 'transparent' }} />
       </View>
     </GradientBackground>
   )

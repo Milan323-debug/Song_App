@@ -21,7 +21,8 @@ const usePlayerStore = create((set, get) => {
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
         staysActiveInBackground: true,
-        playThroughEarpieceAndroid: true,
+         // ensure audio plays through the main speaker on Android (not the earpiece)
+         playThroughEarpieceAndroid: false,
       }
       if (typeof Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS !== 'undefined') {
         mode.interruptionModeIOS = Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS

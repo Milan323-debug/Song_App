@@ -7,12 +7,13 @@ const styles = {
   root: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   miniContainer: {
     position: 'absolute',
-    left: 12,
-    right: 12,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
+    // reduce side insets so the mini player spans wider across the screen
+    left: 5,
+    right: 10,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 7,
+    borderBottomRightRadius: 7,
   // solid background (remove transparency so the player container is opaque)
   backgroundColor: COLORS.playerContainer,
   paddingVertical: 10,
@@ -28,9 +29,9 @@ const styles = {
   },
   miniInner: { flexDirection: 'row', alignItems: 'center' },
   // smaller artwork so the bar can be thicker while remaining compact like Spotify
-  miniArtPlaceholder: { width: 40, height: 40, borderRadius: 6, backgroundColor: DEFAULT_ARTWORK_BG, marginRight: 12 },
+  miniArtPlaceholder: { width: 45, height: 45, borderRadius: 3, backgroundColor: DEFAULT_ARTWORK_BG, marginRight: 12 },
   miniInfo: { flex: 1, justifyContent: 'center' },
-  title: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700' },
+  title: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '700' },
   artist: { color: COLORS.textSecondary, fontSize: 12 },
   // slightly smaller touch targets to keep the bar compact
   // visually transparent button so only the play/pause icon is visible (like Spotify)
@@ -40,7 +41,7 @@ const styles = {
 
   // bottom progress strip (previously topProgress) — flush to container bottom (thinner)
   topProgress: { height: 2, backgroundColor: 'rgba(255,255,255,0.06)', position: 'absolute', left: 12, right: 12, bottom: 0, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, overflow: 'hidden' },
-  topProgressFill: { height: 2, backgroundColor: COLORS.primary, borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
+  topProgressFill: { height: 2, backgroundColor: COLORS.primary, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 },
 
   fullContainer: {
     position: 'absolute',

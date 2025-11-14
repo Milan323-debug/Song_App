@@ -34,8 +34,8 @@ export default StyleSheet.create({
   },
   // smaller artwork for inline song rows (playlist detail, liked songs)
   songArtwork: {
-    width: 44,
-    height: 44,
+    width: 54,
+    height: 54,
     borderRadius: 4,
     backgroundColor: DEFAULT_ARTWORK_BG,
   },
@@ -65,19 +65,33 @@ export default StyleSheet.create({
     right: 0,
     zIndex: 10,
     // increase paddingTop so the search bar can sit above the image/title without overlap
-    paddingTop: 72,
+    // give more top inset so header content (search/title) has breathing room
+    paddingTop: 92,
     paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingLeft: 20,
+    paddingRight: 16,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
     overflow: 'hidden',
   },
   headerImage: {
-    width: 120,
-    height: 120,
+    width: 160,
+    height: 160,
     borderRadius: 6,
-    marginRight: 12,
+    marginRight: 16,
+    backgroundColor: DEFAULT_ARTWORK_BG,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '33',
+  },
+  // playlist-specific header artwork that sits slightly lower
+  playlistHeaderImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 6,
+    marginRight: 16,
+    // reduce top offset so playlist artwork sits slightly higher (closer to header)
+    marginTop: 8,
     backgroundColor: DEFAULT_ARTWORK_BG,
     borderWidth: 1,
     borderColor: COLORS.primary + '33',
@@ -120,6 +134,10 @@ export default StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
+  // Liked-screen specific: nudge the whole row slightly to the right
+  likedItem: {
+    marginLeft: 9,
+  },
   playingArtwork: {
     borderWidth: 2,
     borderColor: COLORS.primary,
@@ -149,7 +167,8 @@ export default StyleSheet.create({
   },
   searchBoxWrap: {
     position: 'absolute',
-    left: 16,
+    // align search box a bit further from the left edge so it doesn't overlap artwork
+    left: 24,
     right: 16,
     // top is controlled by the animated style `searchBoxStyle` so the box
     // remains visually anchored inside the header and moves with it.

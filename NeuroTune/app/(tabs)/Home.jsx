@@ -1084,7 +1084,7 @@ const styles = StyleSheet.create({
   avatarWrap: { width: 42, height: 42, borderRadius: 22, overflow: 'hidden', marginRight: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
   avatar: { width: '100%', height: '100%' },
   chipsRow: { flexDirection: 'row', alignItems: 'center' },
-  pill: { marginRight: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
+  pill: { marginRight: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   pillInactive: { backgroundColor: 'transparent' },
   pillActive: { borderWidth: 1.5, borderColor: COLORS.primary },
   pillText: { color: COLORS.textPrimary, fontWeight: '600', fontSize: 13 },
@@ -1094,8 +1094,8 @@ const styles = StyleSheet.create({
   // tighter compact grid for top playlists (squized)
   compactGrid: { paddingHorizontal: H_PAD, marginTop: 4, marginBottom: 4 },
   rowPair: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  smallRow: { backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 12, flexDirection: 'row', alignItems: 'center', padding: 6, width: TWO_COL_W },
-  thumbWrap: { width: 46, height: 46, borderRadius: 8, overflow: 'hidden', marginRight: 8 },
+  smallRow: { backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 6, flexDirection: 'row', alignItems: 'center', padding: 6, width: TWO_COL_W },
+  thumbWrap: { width: 46, height: 46, borderRadius: 2, overflow: 'hidden', marginRight: 8 },
   thumb: { width: '100%', height: '100%' },
   rowMeta: { flex: 1 },
   rowTitle: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 13 },
@@ -1106,7 +1106,7 @@ const styles = StyleSheet.create({
   bigTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '900' },
 
   heroWrapper: { paddingVertical: 6 },
-  heroCard: { width: HERO_W, height: HERO_H, borderRadius: 12, overflow: 'hidden', marginRight: 12 },
+  heroCard: { width: HERO_W, height: HERO_H, borderRadius: 6, overflow: 'hidden', marginRight: 12 },
   heroImg: { width: '100%', height: '100%' },
   heroOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   heroLabel: { position: 'absolute', left: 12, bottom: 12 },
@@ -1130,7 +1130,7 @@ const styles = StyleSheet.create({
   cardSmall: {
     width: TWO_COL_W,
     marginBottom: 12,
-    borderRadius: 10,
+    borderRadius: 6,
     overflow: 'hidden',
     backgroundColor: 'transparent',
     ...Platform.select({
@@ -1160,7 +1160,7 @@ const styles = StyleSheet.create({
   seeCard: { width: SEE_CARD_W, borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent', shadowColor: 'transparent', shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 },
   // Make the "See others" cards square and slightly larger for emphasis
   // use transparent background so artwork retains original colors (not darkened)
-  seeImgWrap: { width: SEE_CARD_W, height: Math.round(SEE_CARD_W), borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent' },
+  seeImgWrap: { width: SEE_CARD_W, height: Math.round(SEE_CARD_W), borderRadius: 6, overflow: 'hidden', backgroundColor: 'transparent' },
   seeImg: { width: '100%', height: '100%', borderRadius: 0 },
   seeOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   // remove heavy dark overlay so artwork keeps original color
@@ -1190,12 +1190,12 @@ const styles = StyleSheet.create({
   songArtwork: {
     width: 56,
     height: 56,
-    borderRadius: 6,
+    borderRadius: 1,
     backgroundColor: DEFAULT_ARTWORK_BG,
   },
 
   // tighten up the main grid cards so everything feels compact and balanced
   thumb: { width: '100%', height: '100%', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
   recentImage: { width: '100%', height: '100%', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
-  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.62), borderRadius: 10, resizeMode: 'cover', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
+  cardSmallImg: { width: '100%', height: Math.round(TWO_COL_W * 0.62), borderRadius: 1, resizeMode: 'cover', backgroundColor: 'rgba(0, 81, 92, 0.91)' },
 })

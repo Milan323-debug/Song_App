@@ -243,7 +243,7 @@ export default function PlaylistDetail() {
     const isPlaying = current && current._id === item._id
     const isLiked = likedSet.has(String(item._id))
     return (
-      <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={styles.item} activeOpacity={0.8}>
+      <TouchableOpacity onPress={() => onPlay(item)} onLongPress={() => openMenu(item)} style={[styles.item, styles.likedItem]} activeOpacity={0.8}>
   <Image source={{ uri: item.artworkUrl || item.imageUrl || item.cover || DEFAULT_ARTWORK_URL }} style={[styles.songArtwork, isPlaying && styles.playingArtwork]} />
         <View style={styles.itemText}>
           <Text numberOfLines={1} style={[styles.title, isPlaying && styles.playingText]}>{item.title}</Text>
@@ -262,7 +262,7 @@ export default function PlaylistDetail() {
   const keyExtractor = useCallback((i) => String(i._id || i.id || i.title), [])
 
   // Reanimated header
-  const HEADER_MAX = 220
+  const HEADER_MAX = 260
   const HEADER_MIN = 80
   const HEADER_SCROLL = HEADER_MAX - HEADER_MIN
   const onScroll = useAnimatedScrollHandler((ev) => { scrollY.value = ev.contentOffset.y })
@@ -318,10 +318,11 @@ export default function PlaylistDetail() {
   })
 
   const searchBoxStyle = useAnimatedStyle(() => {
-    const top = interpolate(scrollY.value, [0, HEADER_SCROLL], [16, 8], Extrapolate.CLAMP)
+    const top = interpolate(scrollY.value, [0, HEADER_SCROLL], [18, 10], Extrapolate.CLAMP)
     const padding = interpolate(scrollY.value, [0, HEADER_SCROLL], [10, 6], Extrapolate.CLAMP)
     const opacity = interpolate(scrollY.value, [0, HEADER_SCROLL * 0.6, HEADER_SCROLL], [1, 0.95, 0.85], Extrapolate.CLAMP)
-    return { position: 'absolute', left: 16, right: 16, top, paddingVertical: padding, opacity, zIndex: 50 }
+    // left inset should match styles.searchBoxWrap left (24)
+    return { position: 'absolute', left: 24, right: 16, top, paddingVertical: padding, opacity, zIndex: 50 }
   })
 
   if (loading) return (
@@ -354,10 +355,12 @@ export default function PlaylistDetail() {
   )
 
   return (
-    <GradientBackground variant="teal" bottomDark={true}>
+    // remove the bottom fade for playlist detail so the dark gradient doesn't
+    // visually overlap or hide the playlist banner artwork
+    <GradientBackground variant="teal" bottomDark={true} bottomFade={false}>
       <View style={[styles.container, { backgroundColor: 'transparent' }]}> 
         <Reanimated.View style={[styles.header, headerStyle]} >
-          <AnimatedImage source={{ uri: playlist.imageUrl || playlist.poster || playlist.cover || playlist.songs[0]?.artworkUrl || playlist.songs[0]?.imageUrl || DEFAULT_ARTWORK_URL }} style={[styles.headerImage, headerImageStyle]} />
+          <AnimatedImage source={{ uri: playlist.imageUrl || playlist.poster || playlist.cover || playlist.songs[0]?.artworkUrl || playlist.songs[0]?.imageUrl || DEFAULT_ARTWORK_URL }} style={[styles.playlistHeaderImage ? styles.playlistHeaderImage : styles.headerImage, headerImageStyle]} />
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerSubtitle}>Playlist</Text>
             <AnimatedText style={[styles.headerTitle, titleAnimatedStyle]}>{playlist.title}</AnimatedText>
